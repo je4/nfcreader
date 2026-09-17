@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">ISO 15693 NFC Reader</string>
+    <string name="user_text_label">Eingabefeld (Beliebiger Text)</string>
+    <string name="user_text_hint">Text eingeben, z.B. Kennung, Standort, Benutzer...</string>
+    <string name="target_url_label">Ziel-URL</string>
+    <string name="target_url_hint">https://example.com/api?text={text}&amp;nfc={nfc}</string>
+    <string name="nfc_status_ready">Bereit für ISO 15693 NFC-Scan</string>
+    <string name="nfc_status_disabled">NFC ist deaktiviert. Bitte in Einstellungen aktivieren.</string>
+    <string name="nfc_status_unsupported">Dieses Gerät unterstützt kein NFC.</string>
+    <string name="nfc_status_scanning">Kontinuierlicher Scan aktiv...</string>
+    <string name="last_scan_title">Letzter NFC-Scan</string>
+    <string name="history_title">Scan-Verlauf &amp; URL-Aufrufe</string>
+    <string name="clear_history">Verlauf leeren</string>
+    <string name="test_scan">Test-Scan ausführen</string>
+    <string name="http_method">HTTP Methode</string>
+    <string name="iso_15693_tag">ISO 15693 Tag</string>
+    <string name="no_scans_yet">Noch keine NFC-Tags gescannt. Halten Sie ein ISO 15693 Tag an die Rückseite des Smartphones.</string>
+
+    <!-- Settings Strings -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_target_url_section">Ziel-URL Konfiguration</string>
+    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {nfc}, {uid}, {timestamp}, {jwt}</string>
+    <string name="settings_jwt_section">JWT Authentifizierung</string>
+    <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
+    <string name="settings_jwt_label">JWT Key / Token</string>
+    <string name="settings_jwt_hint">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</string>
+    <string name="settings_save">Speichern</string>
+    <string name="settings_saved_toast">Einstellungen gespeichert</string>
+    <string name="action_settings">Einstellungen</string>
+</resources>
