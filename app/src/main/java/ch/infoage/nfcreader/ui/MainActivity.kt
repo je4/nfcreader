@@ -1,4 +1,4 @@
-package com.example.nfcreader.ui
+package ch.infoage.nfcreader.ui
 
 import android.content.Intent
 import android.nfc.NfcAdapter
@@ -14,10 +14,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.nfcreader.R
-import com.example.nfcreader.data.local.AppSettings
-import com.example.nfcreader.databinding.ActivityMainBinding
-import com.example.nfcreader.nfc.NfcReaderManager
+import ch.infoage.nfcreader.R
+import ch.infoage.nfcreader.data.local.AppSettings
+import ch.infoage.nfcreader.databinding.ActivityMainBinding
+import ch.infoage.nfcreader.nfc.NfcReaderManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat

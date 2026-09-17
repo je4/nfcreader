@@ -1,4 +1,4 @@
-package com.example.nfcreader.data.model
+package ch.infoage.nfcreader.data.model
 
 data class NfcScanResult(
     val id: String = java.util.UUID.randomUUID().toString(),

@@ -1,6 +1,6 @@
-package com.example.nfcreader.ui
+package ch.infoage.nfcreader.ui
 
-import com.example.nfcreader.data.network.UrlDispatcher
+import ch.infoage.nfcreader.data.network.UrlDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher

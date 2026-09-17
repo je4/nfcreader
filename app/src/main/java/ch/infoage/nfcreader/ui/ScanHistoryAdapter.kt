@@ -1,4 +1,4 @@
-package com.example.nfcreader.ui
+package ch.infoage.nfcreader.ui
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -6,9 +6,9 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.nfcreader.R
-import com.example.nfcreader.data.model.NfcScanResult
-import com.example.nfcreader.databinding.ItemScanLogBinding
+import ch.infoage.nfcreader.R
+import ch.infoage.nfcreader.data.model.NfcScanResult
+import ch.infoage.nfcreader.databinding.ItemScanLogBinding
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

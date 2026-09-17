@@ -1,4 +1,4 @@
-package com.example.nfcreader.data.network
+package ch.infoage.nfcreader.data.network
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

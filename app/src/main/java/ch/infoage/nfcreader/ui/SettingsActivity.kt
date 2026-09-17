@@ -1,11 +1,11 @@
-package com.example.nfcreader.ui
+package ch.infoage.nfcreader.ui
 
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.nfcreader.R
-import com.example.nfcreader.data.local.AppSettings
-import com.example.nfcreader.databinding.ActivitySettingsBinding
+import ch.infoage.nfcreader.R
+import ch.infoage.nfcreader.data.local.AppSettings
+import ch.infoage.nfcreader.databinding.ActivitySettingsBinding
 
 class SettingsActivity : AppCompatActivity() {
 

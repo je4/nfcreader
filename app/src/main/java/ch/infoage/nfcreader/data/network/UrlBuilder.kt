@@ -1,4 +1,4 @@
-package com.example.nfcreader.data.network
+package ch.infoage.nfcreader.data.network
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets

@@ -1,4 +1,4 @@
-package com.example.nfcreader.nfc
+package ch.infoage.nfcreader.nfc
 
 import android.nfc.Tag
 import android.nfc.tech.Ndef

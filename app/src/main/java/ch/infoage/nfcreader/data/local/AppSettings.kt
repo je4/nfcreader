@@ -1,4 +1,4 @@
-package com.example.nfcreader.data.local
+package ch.infoage.nfcreader.data.local
 
 import android.content.Context
 import android.content.SharedPreferences

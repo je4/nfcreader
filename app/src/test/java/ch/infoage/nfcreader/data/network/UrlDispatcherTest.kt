@@ -1,4 +1,4 @@
-package com.example.nfcreader.data.network
+package ch.infoage.nfcreader.data.network
 
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse

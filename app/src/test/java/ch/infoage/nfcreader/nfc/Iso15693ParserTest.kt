@@ -1,4 +1,4 @@
-package com.example.nfcreader.nfc
+package ch.infoage.nfcreader.nfc
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

@@ -1,6 +1,6 @@
-package com.example.nfcreader.data.network
+package ch.infoage.nfcreader.data.network
 
-import com.example.nfcreader.data.model.ScanResponse
+import ch.infoage.nfcreader.data.model.ScanResponse
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

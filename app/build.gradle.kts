@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.nfcreader"
+    namespace = "ch.infoage.nfcreader"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.nfcreader"
+        applicationId = "ch.infoage.nfcreader"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

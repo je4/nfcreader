@@ -1,11 +1,11 @@
-package com.example.nfcreader.ui
+package ch.infoage.nfcreader.ui
 
 import android.nfc.Tag
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.nfcreader.data.model.NfcScanResult
-import com.example.nfcreader.data.network.UrlDispatcher
-import com.example.nfcreader.nfc.Iso15693Parser
+import ch.infoage.nfcreader.data.model.NfcScanResult
+import ch.infoage.nfcreader.data.network.UrlDispatcher
+import ch.infoage.nfcreader.nfc.Iso15693Parser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
