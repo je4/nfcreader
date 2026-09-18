@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">ISO 15693 NFC Reader</string>
-    <string name="user_text_label">Eingabefeld (Beliebiger Text)</string>
-    <string name="user_text_hint">Text eingeben, z.B. Kennung, Standort, Benutzer...</string>
+    <string name="user_text_label">Standort</string>
+    <string name="user_text_hint">Standort eingeben</string>
     <string name="target_url_label">Ziel-URL</string>
     <string name="target_url_hint">https://example.com/api?text={text}&amp;nfc={nfc}</string>
     <string name="nfc_status_ready">Bereit für ISO 15693 NFC-Scan</string>
@@ -27,4 +27,7 @@
     <string name="settings_save">Speichern</string>
     <string name="settings_saved_toast">Einstellungen gespeichert</string>
     <string name="action_settings">Einstellungen</string>
+
+    <!-- About / Copyright -->
+    <string name="copyright_notice">© 2026 info-age GmbH, Basel\nLizenziert unter Apache License 2.0</string>
 </resources>

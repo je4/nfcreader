@@ -40,6 +40,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/surface"
                 app:cardCornerRadius="8dp"
                 app:cardElevation="2dp"
                 app:strokeColor="@color/card_border"
@@ -80,6 +81,8 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="@string/target_url_hint"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:inputType="textUri"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -105,6 +108,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="GET"
+                            android:textColor="@color/text_primary"
                             android:checked="true"
                             android:textSize="13sp" />
 
@@ -114,6 +118,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="24dp"
                             android:text="POST"
+                            android:textColor="@color/text_primary"
                             android:textSize="13sp" />
                     </RadioGroup>
 
@@ -125,6 +130,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="@color/surface"
                 app:cardCornerRadius="8dp"
                 app:cardElevation="2dp"
                 app:strokeColor="@color/card_border"
@@ -166,6 +172,8 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="@string/settings_jwt_hint"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:inputType="textMultiLine"
                             android:fontFamily="monospace"
                             android:maxLines="4"
@@ -185,6 +193,18 @@
                 android:textColor="@android:color/white"
                 android:textSize="15sp"
                 app:cornerRadius="8dp" />
+
+            <!-- Copyright Notice -->
+            <TextView
+                android:id="@+id/tvCopyrightNotice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="16dp"
+                android:gravity="center"
+                android:text="@string/copyright_notice"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
