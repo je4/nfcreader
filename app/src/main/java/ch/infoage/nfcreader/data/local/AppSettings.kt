@@ -18,10 +18,18 @@ package ch.infoage.nfcreader.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 class AppSettings(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val securePrefs: SharedPreferences = createEncryptedSharedPreferences(context)
+
+    init {
+        migratePreferences()
+    }
 
     var targetUrl: String
         get() = prefs.getString(KEY_TARGET_URL, DEFAULT_TARGET_URL) ?: DEFAULT_TARGET_URL
@@ -32,16 +40,69 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putString(KEY_HTTP_METHOD, value.trim()).apply()
 
     var jwtKey: String
-        get() = prefs.getString(KEY_JWT_KEY, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_JWT_KEY, value.trim()).apply()
+        get() = securePrefs.getString(KEY_JWT_KEY, "") ?: ""
+        set(value) = securePrefs.edit().putString(KEY_JWT_KEY, value.trim()).apply()
+
+    private fun migratePreferences() {
+        try {
+            // 1. If jwtKey was previously stored in standard prefs, migrate to securePrefs and remove from standard prefs
+            if (prefs.contains(KEY_JWT_KEY)) {
+                val legacyJwt = prefs.getString(KEY_JWT_KEY, null)
+                if (!legacyJwt.isNullOrBlank() && !securePrefs.contains(KEY_JWT_KEY)) {
+                    securePrefs.edit().putString(KEY_JWT_KEY, legacyJwt).apply()
+                }
+                prefs.edit().remove(KEY_JWT_KEY).apply()
+            }
+
+            // 2. If targetUrl or httpMethod were stored in securePrefs, migrate back to standard prefs
+            if (securePrefs.contains(KEY_TARGET_URL)) {
+                val secureTargetUrl = securePrefs.getString(KEY_TARGET_URL, null)
+                if (secureTargetUrl != null && !prefs.contains(KEY_TARGET_URL)) {
+                    prefs.edit().putString(KEY_TARGET_URL, secureTargetUrl).apply()
+                }
+                securePrefs.edit().remove(KEY_TARGET_URL).apply()
+            }
+            if (securePrefs.contains(KEY_HTTP_METHOD)) {
+                val secureHttpMethod = securePrefs.getString(KEY_HTTP_METHOD, null)
+                if (secureHttpMethod != null && !prefs.contains(KEY_HTTP_METHOD)) {
+                    prefs.edit().putString(KEY_HTTP_METHOD, secureHttpMethod).apply()
+                }
+                securePrefs.edit().remove(KEY_HTTP_METHOD).apply()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to migrate preferences", e)
+        }
+    }
 
     companion object {
+        private const val TAG = "AppSettings"
         private const val PREFS_NAME = "nfc_reader_settings"
+        private const val SECURE_PREFS_NAME = "nfc_reader_secure_settings"
+
         private const val KEY_TARGET_URL = "target_url"
         private const val KEY_HTTP_METHOD = "http_method"
         private const val KEY_JWT_KEY = "jwt_key"
 
         const val DEFAULT_TARGET_URL = "https://httpbin.org/get"
         const val DEFAULT_HTTP_METHOD = "GET"
+
+        private fun createEncryptedSharedPreferences(context: Context): SharedPreferences {
+            return try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+
+                EncryptedSharedPreferences.create(
+                    context,
+                    SECURE_PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize EncryptedSharedPreferences, falling back to standard preferences", e)
+                context.getSharedPreferences(SECURE_PREFS_NAME, Context.MODE_PRIVATE)
+            }
+        }
     }
 }
