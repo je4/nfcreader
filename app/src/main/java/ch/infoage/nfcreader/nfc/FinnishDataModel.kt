@@ -33,7 +33,8 @@ data class FinnishLibraryData(
     val isil: String,
     val isCrcValid: Boolean,
     val isTagEmpty: Boolean,
-    val crcHex: String = ""
+    val crcHex: String = "",
+    val afi: String = ""
 ) {
     /**
      * Erzeugt eine einzeilige, strukturierte Zusammenfassung der relevanten Felder.
@@ -49,6 +50,14 @@ data class FinnishLibraryData(
             }
             append(" | Teil: ").append(partNo).append("/").append(parts)
             append(" | Typ: ").append(usageType)
+            if (afi.isNotBlank()) {
+                val statusDesc = when (afi.uppercase()) {
+                    "07" -> "Ausgeliehen"
+                    "C7" -> "Gesichert"
+                    else -> afi
+                }
+                append(" | AFI: ").append(afi.uppercase()).append(" (").append(statusDesc).append(")")
+            }
             append(" | Ver: ").append(version)
             append(" | CRC: ").append(if (isCrcValid) "OK" else "Fehler")
         }
@@ -60,8 +69,9 @@ object FinnishDataModelParser {
     /**
      * Parst die Rohdaten eines ISO 15693 Tags nach dem finnischen Datenmodell.
      * Benötigt für ein vollständiges Datenmodell mindestens 3 Bytes Headerdaten.
+     * Optional kann der ausgelesene AFI-Wert (Application Family Identifier) für den Ausleihstatus übergeben werden.
      */
-    fun parse(uidHex: String, data: ByteArray): FinnishLibraryData? {
+    fun parse(uidHex: String, data: ByteArray, afi: String? = null): FinnishLibraryData? {
         if (data.isEmpty()) {
             return null
         }
@@ -124,7 +134,8 @@ object FinnishDataModelParser {
             isil = isil,
             isCrcValid = isCrcValid,
             isTagEmpty = isEmpty,
-            crcHex = crcHex
+            crcHex = crcHex,
+            afi = afi.orEmpty().trim().uppercase()
         )
     }
 

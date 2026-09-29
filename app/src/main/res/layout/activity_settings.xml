@@ -165,7 +165,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:hint="@string/settings_jwt_label"
-                        app:endIconMode="clear_text">
+                        app:endIconMode="password_toggle">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etSettingsJwtKey"
@@ -174,9 +174,8 @@
                             android:hint="@string/settings_jwt_hint"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary"
-                            android:inputType="textMultiLine"
+                            android:inputType="textPassword"
                             android:fontFamily="monospace"
-                            android:maxLines="4"
                             android:textSize="13sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 

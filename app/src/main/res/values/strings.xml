@@ -3,7 +3,7 @@
     <string name="user_text_label">Standort</string>
     <string name="user_text_hint">Standort eingeben</string>
     <string name="target_url_label">Ziel-URL</string>
-    <string name="target_url_hint">https://example.com/api?text={text}&amp;nfc={nfc}</string>
+    <string name="target_url_hint">https://example.com/api?text={text}&amp;itemid={itemid}&amp;afi={afi}</string>
     <string name="nfc_status_ready">Bereit für ISO 15693 NFC-Scan</string>
     <string name="nfc_status_disabled">NFC ist deaktiviert. Bitte in Einstellungen aktivieren.</string>
     <string name="nfc_status_unsupported">Dieses Gerät unterstützt kein NFC.</string>
@@ -19,7 +19,7 @@
     <!-- Settings Strings -->
     <string name="settings_title">Einstellungen</string>
     <string name="settings_target_url_section">Ziel-URL Konfiguration</string>
-    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {nfc}, {uid}, {timestamp}, {jwt}</string>
+    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {uid}, {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {timestamp}, {jwt}</string>
     <string name="settings_jwt_section">JWT Authentifizierung</string>
     <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
     <string name="settings_jwt_label">JWT Key / Token</string>

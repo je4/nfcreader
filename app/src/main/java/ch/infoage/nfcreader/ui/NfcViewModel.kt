@@ -111,7 +111,8 @@ class NfcViewModel(
             isil = "ISIL-123",
             isCrcValid = true,
             isTagEmpty = false,
-            crcHex = "A1B2"
+            crcHex = "A1B2",
+            afi = "C7"
         )
         val content = mockContent ?: mockLibraryData.toFormattedString()
 

@@ -117,4 +117,51 @@ class FinnishDataModelParserTest {
             formatted
         )
     }
+
+    @Test
+    fun testFormattedStringOutputWithAfiSecuredAndLoaned() {
+        val dataSecured = FinnishLibraryData(
+            uid = "E0040150AABBCCDD",
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "301100001234",
+            country = "DE",
+            isil = "123",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "C7"
+        )
+        assertEquals(
+            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: C7 (Gesichert) | Ver: 1 | CRC: OK",
+            dataSecured.toFormattedString()
+        )
+
+        val dataLoaned = dataSecured.copy(afi = "07")
+        assertEquals(
+            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: 07 (Ausgeliehen) | Ver: 1 | CRC: OK",
+            dataLoaned.toFormattedString()
+        )
+    }
+
+    @Test
+    fun testParseWithAfi() {
+        val original = FinnishLibraryData(
+            uid = "E004015012345678",
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "ITEM-1",
+            country = "DE",
+            isil = "ISIL-1",
+            isCrcValid = true,
+            isTagEmpty = false
+        )
+        val encodedBytes = FinnishDataModelParser.encode(original)
+        val parsed = FinnishDataModelParser.parse(original.uid, encodedBytes, afi = "07")
+        assertNotNull(parsed)
+        assertEquals("07", parsed?.afi)
+    }
 }

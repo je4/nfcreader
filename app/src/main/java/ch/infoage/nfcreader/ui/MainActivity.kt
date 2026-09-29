@@ -137,6 +137,14 @@ class MainActivity : AppCompatActivity() {
                                     append("Bibliothek / ISIL: ").append(isilStr.ifBlank { "(keine)" }).append("\n")
                                     append("Teil: ").append(lib.partNo).append(" von ").append(lib.parts)
                                     append(" | Typ: ").append(lib.usageType)
+                                    if (lib.afi.isNotBlank()) {
+                                        val statusDesc = when (lib.afi.uppercase()) {
+                                            "07" -> "07 (Ausgeliehen)"
+                                            "C7" -> "C7 (Gesichert)"
+                                            else -> lib.afi
+                                        }
+                                        append(" | Status: ").append(statusDesc)
+                                    }
                                     append(" | Version: ").append(lib.version)
                                     append(" | CRC: ").append(if (lib.isCrcValid) "OK" else "Fehler (${lib.crcHex})").append("\n")
                                 }

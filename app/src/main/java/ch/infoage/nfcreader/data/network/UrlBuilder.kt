@@ -25,7 +25,7 @@ object UrlBuilder {
     /**
      * Builds the target URL containing the user-entered text and the NFC content.
      * Supports both template placeholders ({text}, {nfc}, {uid}, {timestamp}, {jwt},
-     * {itemid}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}) and
+     * {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}) and
      * automatic query parameter appending if placeholders are not present.
      */
     fun buildUrl(
@@ -48,6 +48,7 @@ object UrlBuilder {
         val encodedTimestamp = encode(timestamp.toString())
         val encodedJwt = encode(jwtToken)
         val encodedItemId = encode(libraryData?.itemId.orEmpty())
+        val encodedAfi = encode(libraryData?.afi.orEmpty())
         val encodedCountry = encode(libraryData?.country.orEmpty())
         val encodedIsil = encode(libraryData?.isil.orEmpty())
         val encodedParts = encode(libraryData?.parts?.toString().orEmpty())
@@ -61,6 +62,7 @@ object UrlBuilder {
                 trimmed.contains("{timestamp}") ||
                 trimmed.contains("{jwt}") ||
                 trimmed.contains("{itemid}") ||
+                trimmed.contains("{afi}") ||
                 trimmed.contains("{country}") ||
                 trimmed.contains("{isil}") ||
                 trimmed.contains("{parts}") ||
@@ -76,6 +78,7 @@ object UrlBuilder {
                 .replace("{timestamp}", encodedTimestamp)
                 .replace("{jwt}", encodedJwt)
                 .replace("{itemid}", encodedItemId)
+                .replace("{afi}", encodedAfi)
                 .replace("{country}", encodedCountry)
                 .replace("{isil}", encodedIsil)
                 .replace("{parts}", encodedParts)
@@ -86,7 +89,8 @@ object UrlBuilder {
             val delimiter = if (trimmed.contains("?")) "&" else "?"
             val baseParams = "$trimmed${delimiter}text=$encodedText&nfc=$encodedNfc&uid=$encodedUid&ts=$encodedTimestamp"
             if (libraryData != null && !libraryData.isTagEmpty) {
-                "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion"
+                val afiParam = if (encodedAfi.isNotBlank()) "&afi=$encodedAfi" else ""
+                "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion$afiParam"
             } else {
                 baseParams
             }

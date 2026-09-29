@@ -113,7 +113,7 @@ class UrlBuilderTest {
 
     @Test
     fun testBuildUrlWithFinnishLibraryPlaceholders() {
-        val template = "https://library.org/item?id={itemid}&isil={isil}&country={country}&part={partno}&total={parts}&type={usagetype}&v={version}"
+        val template = "https://library.org/item?id={itemid}&isil={isil}&country={country}&part={partno}&total={parts}&type={usagetype}&v={version}&status={afi}"
         val libraryData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
             uid = "E004015099887766",
             version = 1,
@@ -124,7 +124,8 @@ class UrlBuilderTest {
             country = "DE",
             isil = "ISIL-555",
             isCrcValid = true,
-            isTagEmpty = false
+            isTagEmpty = false,
+            afi = "07"
         )
 
         val result = UrlBuilder.buildUrl(
@@ -136,8 +137,38 @@ class UrlBuilderTest {
         )
 
         assertEquals(
-            "https://library.org/item?id=3011000123&isil=ISIL-555&country=DE&part=1&total=3&type=1&v=1",
+            "https://library.org/item?id=3011000123&isil=ISIL-555&country=DE&part=1&total=3&type=1&v=1&status=07",
             result
         )
+    }
+
+    @Test
+    fun testBuildUrlWithNoPlaceholdersIncludesAfiWhenPresent() {
+        val baseUrl = "https://api.library.org/scan"
+        val libraryData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015099887766",
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "3011000123",
+            country = "CH",
+            isil = "ISIL-1",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "C7"
+        )
+
+        val result = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = baseUrl,
+            userText = "Filiale",
+            nfcContent = libraryData.toFormattedString(),
+            uid = libraryData.uid,
+            timestamp = 1700000000000L,
+            libraryData = libraryData
+        )
+
+        assertTrue(result.contains("afi=C7"))
+        assertTrue(result.contains("itemid=3011000123"))
     }
 }

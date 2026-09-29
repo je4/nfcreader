@@ -28,7 +28,13 @@ data class ParsedNfcTag(
     val rawPayloadHex: String,
     val textContent: String?,
     val fullSummary: String,
-    val libraryData: FinnishLibraryData? = null
+    val libraryData: FinnishLibraryData? = null,
+    val afi: String? = null
+)
+
+data class NfcVData(
+    val blocks: ByteArray?,
+    val afiHex: String? = null
 )
 
 object Iso15693Parser {
@@ -55,16 +61,18 @@ object Iso15693Parser {
         // Try reading NDEF first
         val ndefText = readNdefMessage(tag)
 
-        // Try reading raw blocks via NfcV if available
-        val nfcvData = if (isIso15693) readNfcVBlocks(tag) else null
+        // Try reading raw blocks and AFI via NfcV if available
+        val nfcvData = if (isIso15693) readNfcVData(tag) else null
+        val rawBlocks = nfcvData?.blocks
+        val afiHex = nfcvData?.afiHex
 
         // Try parsing Finnish Library Data Model if raw NFC-V bytes available
-        val libraryData = if (nfcvData != null && nfcvData.isNotEmpty()) {
-            FinnishDataModelParser.parse(uidHex, nfcvData)
+        val libraryData = if (rawBlocks != null && rawBlocks.isNotEmpty()) {
+            FinnishDataModelParser.parse(uidHex, rawBlocks, afi = afiHex)
         } else null
 
         val rawPayloadHex = when {
-            nfcvData != null && nfcvData.isNotEmpty() -> bytesToHex(nfcvData)
+            rawBlocks != null && rawBlocks.isNotEmpty() -> bytesToHex(rawBlocks)
             ndefText != null -> bytesToHex(ndefText.toByteArray(StandardCharsets.UTF_8))
             else -> uidHex
         }
@@ -72,7 +80,7 @@ object Iso15693Parser {
         val textContent = when {
             libraryData != null && !libraryData.isTagEmpty -> libraryData.toFormattedString()
             !ndefText.isNullOrBlank() -> ndefText
-            nfcvData != null && nfcvData.isNotEmpty() -> parseAsciiIfPossible(nfcvData)
+            rawBlocks != null && rawBlocks.isNotEmpty() -> parseAsciiIfPossible(rawBlocks)
             else -> null
         }
 
@@ -84,7 +92,8 @@ object Iso15693Parser {
             rawPayloadHex = rawPayloadHex,
             textContent = textContent,
             fullSummary = fullSummary,
-            libraryData = libraryData
+            libraryData = libraryData,
+            afi = afiHex
         )
     }
 
@@ -122,20 +131,39 @@ object Iso15693Parser {
     }
 
     /**
-     * Reads memory blocks from an ISO 15693 (NfcV) Tag.
+     * Reads memory blocks and AFI from an ISO 15693 (NfcV) Tag.
      */
-    private fun readNfcVBlocks(tag: Tag): ByteArray? {
+    private fun readNfcVData(tag: Tag): NfcVData? {
         val nfcv = NfcV.get(tag) ?: return null
         return try {
             nfcv.connect()
-            val outputStream = ByteArrayOutputStream()
             val uid = tag.id
 
-            // Standard ISO 15693 Read Single Block Command:
-            // Flags: 0x22 (High Data Rate + Addressed)
-            // Command: 0x20 (Read Single Block)
-            // UID: 8 bytes
-            // Block Index: 1 byte
+            // 1. Read System Information to extract AFI (Application Family Identifier / Ausleihstatus)
+            var afiHex: String? = null
+            try {
+                val sysInfoCmd = ByteArray(2 + uid.size).apply {
+                    this[0] = 0x22.toByte() // Flag: High data rate (0x02) | Addressed (0x20)
+                    this[1] = 0x2B.toByte() // Command: Get System Information
+                    System.arraycopy(uid, 0, this, 2, uid.size)
+                }
+                val sysInfoResp = nfcv.transceive(sysInfoCmd)
+                if (sysInfoResp != null && sysInfoResp.isNotEmpty() && sysInfoResp[0] == 0x00.toByte()) {
+                    afiHex = parseAfiFromSystemInfo(sysInfoResp)
+                } else {
+                    // Try unaddressed mode as fallback
+                    val unaddressedSysInfoCmd = byteArrayOf(0x02, 0x2B)
+                    val unaddressedResp = nfcv.transceive(unaddressedSysInfoCmd)
+                    if (unaddressedResp != null && unaddressedResp.isNotEmpty() && unaddressedResp[0] == 0x00.toByte()) {
+                        afiHex = parseAfiFromSystemInfo(unaddressedResp)
+                    }
+                }
+            } catch (ignored: Exception) {
+                // Not all chips support Get System Information; continue with block reading
+            }
+
+            // 2. Read memory blocks
+            val outputStream = ByteArrayOutputStream()
             for (blockIndex in 0 until 16) {
                 val cmd = ByteArray(1 + 1 + uid.size + 1).apply {
                     this[0] = 0x22.toByte() // Flag: High data rate (0x02) | Addressed (0x20)
@@ -166,14 +194,41 @@ object Iso15693Parser {
             }
             nfcv.close()
 
-            val result = outputStream.toByteArray()
-            if (result.isNotEmpty()) result else null
+            val blocks = outputStream.toByteArray()
+            NfcVData(
+                blocks = if (blocks.isNotEmpty()) blocks else null,
+                afiHex = afiHex
+            )
         } catch (e: Exception) {
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}
             null
         }
+    }
+
+    /**
+     * Extrahiert den AFI-Wert (Hex-String, z. B. "07" oder "C7") aus einer ISO 15693 Get System Information Antwort.
+     */
+    fun parseAfiFromSystemInfo(response: ByteArray): String? {
+        if (response.size < 10) return null
+        if (response[0] != 0x00.toByte()) return null
+
+        val infoFlags = response[1].toInt() and 0xFF
+        var offset = 10 // Byte 0: Flags, Byte 1: InfoFlags, Bytes 2..9: UID (8 Bytes)
+
+        // Bit 0 (0x01): DSFID unterstützt und vorhanden (1 Byte)
+        if ((infoFlags and 0x01) != 0) {
+            offset += 1
+        }
+
+        // Bit 1 (0x02): AFI unterstützt und vorhanden (1 Byte)
+        if ((infoFlags and 0x02) != 0 && response.size > offset) {
+            val afiByte = response[offset]
+            return String.format("%02X", afiByte.toInt() and 0xFF)
+        }
+
+        return null
     }
 
     private fun parseAsciiIfPossible(bytes: ByteArray): String? {
@@ -201,6 +256,15 @@ object Iso15693Parser {
                 }
                 append(" | Teil: ").append(libraryData.partNo).append("/").append(libraryData.parts)
                 append(" | Typ: ").append(libraryData.usageType)
+                if (libraryData.afi.isNotBlank()) {
+                    val statusDesc = when (libraryData.afi.uppercase()) {
+                        "07" -> "Ausgeliehen"
+                        "C7" -> "Gesichert"
+                        else -> libraryData.afi
+                    }
+                    append(" | AFI: ").append(libraryData.afi.uppercase()).append(" (").append(statusDesc).append(")")
+                }
+                append(" | Ver: ").append(libraryData.version)
                 append(" | CRC: ").append(if (libraryData.isCrcValid) "OK" else "Fehler")
             } else if (!text.isNullOrBlank()) {
                 append(" | Inhalt: ").append(text)

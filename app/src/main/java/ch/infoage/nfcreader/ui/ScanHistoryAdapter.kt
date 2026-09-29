@@ -57,7 +57,15 @@ class ScanHistoryAdapter : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanVie
                 val lib = item.libraryData
                 val isilStr = listOfNotNull(lib.country.takeIf { it.isNotBlank() }, lib.isil.takeIf { it.isNotBlank() })
                     .joinToString("-")
-                binding.tvLogNfcContent.text = "Item-ID: ${lib.itemId.ifBlank { "-" }} | ISIL: ${isilStr.ifBlank { "-" }} | Teil: ${lib.partNo}/${lib.parts}"
+                val afiStr = if (lib.afi.isNotBlank()) {
+                    val status = when (lib.afi.uppercase()) {
+                        "07" -> "Ausgeliehen"
+                        "C7" -> "Gesichert"
+                        else -> lib.afi
+                    }
+                    " | Status: $status"
+                } else ""
+                binding.tvLogNfcContent.text = "Item-ID: ${lib.itemId.ifBlank { "-" }} | ISIL: ${isilStr.ifBlank { "-" }} | Teil: ${lib.partNo}/${lib.parts}$afiStr"
             } else {
                 binding.tvLogNfcContent.text = "NFC-Wert: ${item.content}"
             }

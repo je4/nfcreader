@@ -34,4 +34,49 @@ class Iso15693ParserTest {
         val hex = Iso15693Parser.bytesToHex(bytes)
         assertEquals("", hex)
     }
+
+    @Test
+    fun testParseAfiFromSystemInfoWithDsfidAndAfiLoaned() {
+        // Response format:
+        // Byte 0: 0x00 (success)
+        // Byte 1: 0x03 (DSFID + AFI flags set)
+        // Bytes 2..9: UID (8 bytes)
+        // Byte 10: DSFID (0x01)
+        // Byte 11: AFI (0x07 = Ausgeliehen)
+        val response = byteArrayOf(
+            0x00, 0x03,
+            0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
+            0x01,
+            0x07
+        )
+        val afi = Iso15693Parser.parseAfiFromSystemInfo(response)
+        assertEquals("07", afi)
+    }
+
+    @Test
+    fun testParseAfiFromSystemInfoWithoutDsfidSecured() {
+        // Byte 0: 0x00
+        // Byte 1: 0x02 (only AFI flag set)
+        // Bytes 2..9: UID
+        // Byte 10: AFI (0xC7 = Gesichert)
+        val response = byteArrayOf(
+            0x00, 0x02,
+            0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
+            0xC7.toByte()
+        )
+        val afi = Iso15693Parser.parseAfiFromSystemInfo(response)
+        assertEquals("C7", afi)
+    }
+
+    @Test
+    fun testParseAfiFromSystemInfoWhenAfiFlagNotSet() {
+        // Byte 1: 0x01 (only DSFID)
+        val response = byteArrayOf(
+            0x00, 0x01,
+            0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
+            0x00
+        )
+        val afi = Iso15693Parser.parseAfiFromSystemInfo(response)
+        assertEquals(null, afi)
+    }
 }
