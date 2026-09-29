@@ -67,7 +67,7 @@ class UrlDispatcherTest {
         val recordedRequest = mockWebServer.takeRequest()
         assertEquals("GET", recordedRequest.method)
         assertTrue(recordedRequest.path?.contains("text=Scanner1") == true)
-        assertTrue(recordedRequest.path?.contains("nfc=TAG-VALUE-123") == true)
+        assertTrue(recordedRequest.path?.contains("raw=TAG-VALUE-123") == true)
     }
 
     @Test
@@ -82,7 +82,7 @@ class UrlDispatcherTest {
         val result = urlDispatcher.dispatchScan(
             targetUrlTemplate = baseUrl,
             userText = "ScannerPost",
-            nfcContent = "ISO15693-VALUE",
+            rawPayloadHex = "ISO15693-VALUE",
             uid = "E00401509988",
             httpMethod = "POST"
         )
@@ -95,7 +95,7 @@ class UrlDispatcherTest {
         assertEquals("POST", recordedRequest.method)
         val bodyText = recordedRequest.body.readUtf8()
         assertTrue(bodyText.contains("\"text\":\"ScannerPost\""))
-        assertTrue(bodyText.contains("\"nfc\":\"ISO15693-VALUE\""))
+        assertTrue(bodyText.contains("\"raw\":\"ISO15693-VALUE\""))
     }
 
     @Test

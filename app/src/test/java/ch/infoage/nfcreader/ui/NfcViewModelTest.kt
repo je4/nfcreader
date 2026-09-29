@@ -91,7 +91,8 @@ class NfcViewModelTest {
         viewModel.processScan(
             uid = "E004015099887766",
             tagType = "ISO 15693 (NfcV)",
-            content = "PAYLOAD-BLOCK-DATA"
+            content = "PAYLOAD-BLOCK-DATA",
+            rawPayloadHex = "01020304"
         )
 
         advanceUntilIdle()
@@ -114,6 +115,7 @@ class NfcViewModelTest {
         assertEquals("E004015099887766", lastScan?.uid)
         assertEquals("Kiste A-9", lastScan?.userText)
         assertEquals("PAYLOAD-BLOCK-DATA", lastScan?.content)
+        assertEquals("01020304", lastScan?.rawPayloadHex)
         assertEquals(200, lastScan?.httpStatus)
         assertTrue(lastScan?.isSuccess == true)
 

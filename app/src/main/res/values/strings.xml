@@ -19,7 +19,7 @@
     <!-- Settings Strings -->
     <string name="settings_title">Einstellungen</string>
     <string name="settings_target_url_section">Ziel-URL Konfiguration</string>
-    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {uid}, {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {timestamp}, {jwt}</string>
+    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {uid}, {raw}, {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {timestamp}, {jwt}</string>
     <string name="settings_jwt_section">JWT Authentifizierung</string>
     <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
     <string name="settings_jwt_label">JWT Key / Token</string>

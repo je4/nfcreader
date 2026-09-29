@@ -41,7 +41,8 @@ class UrlDispatcher(
     suspend fun dispatchScan(
         targetUrlTemplate: String,
         userText: String,
-        nfcContent: String,
+        nfcContent: String = "",
+        rawPayloadHex: String = "",
         uid: String,
         httpMethod: String = "GET",
         jwtToken: String? = null,
@@ -52,11 +53,12 @@ class UrlDispatcher(
             val fullUrl = UrlBuilder.buildUrl(
                 baseUrlOrTemplate = targetUrlTemplate,
                 userText = userText,
-                nfcContent = nfcContent,
+                rawPayloadHex = rawPayloadHex,
                 uid = uid,
                 timestamp = startTime,
                 jwtToken = jwtToken.orEmpty(),
-                libraryData = libraryData
+                libraryData = libraryData,
+                nfcContent = nfcContent
             )
 
             if (fullUrl.isBlank()) {
@@ -68,7 +70,7 @@ class UrlDispatcher(
             if (httpMethod.equals("POST", ignoreCase = true)) {
                 val jsonBody = JSONObject().apply {
                     put("text", userText)
-                    put("nfc", nfcContent)
+                    put("raw", rawPayloadHex.ifBlank { nfcContent })
                     put("uid", uid)
                     put("timestamp", startTime)
                     if (!jwtToken.isNullOrBlank()) {
@@ -76,6 +78,9 @@ class UrlDispatcher(
                     }
                     if (libraryData != null && !libraryData.isTagEmpty) {
                         put("itemId", libraryData.itemId)
+                        if (libraryData.afi.isNotBlank()) {
+                            put("afi", libraryData.afi)
+                        }
                         put("country", libraryData.country)
                         put("isil", libraryData.isil)
                         put("parts", libraryData.parts)

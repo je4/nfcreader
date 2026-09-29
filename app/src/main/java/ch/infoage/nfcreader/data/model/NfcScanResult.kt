@@ -24,6 +24,7 @@ data class NfcScanResult(
     val uid: String,
     val tagType: String = "ISO 15693 (NfcV)",
     val content: String,
+    val rawPayloadHex: String = "",
     val userText: String,
     val requestUrl: String,
     val httpMethod: String = "GET",

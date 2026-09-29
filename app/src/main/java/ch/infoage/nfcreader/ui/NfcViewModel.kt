@@ -93,6 +93,7 @@ class NfcViewModel(
             uid = parsed.uid,
             tagType = parsed.tagType,
             content = content,
+            rawPayloadHex = parsed.rawPayloadHex,
             libraryData = parsed.libraryData
         )
     }
@@ -115,11 +116,15 @@ class NfcViewModel(
             afi = "C7"
         )
         val content = mockContent ?: mockLibraryData.toFormattedString()
+        val rawPayloadHex = ch.infoage.nfcreader.nfc.FinnishDataModelParser.encode(mockLibraryData).let {
+            Iso15693Parser.bytesToHex(it)
+        }
 
         processScan(
             uid = mockUid,
             tagType = "ISO 15693 (NfcV - Test)",
             content = content,
+            rawPayloadHex = rawPayloadHex,
             libraryData = if (mockContent == null) mockLibraryData else null
         )
     }
@@ -128,6 +133,7 @@ class NfcViewModel(
         uid: String,
         tagType: String,
         content: String,
+        rawPayloadHex: String = "",
         libraryData: FinnishLibraryData? = null
     ) {
         val currentText = _userText.value
@@ -158,6 +164,7 @@ class NfcViewModel(
                 uid = uid,
                 tagType = tagType,
                 content = content,
+                rawPayloadHex = rawPayloadHex,
                 userText = currentText,
                 requestUrl = currentUrl,
                 httpMethod = currentMethod,
@@ -168,6 +175,7 @@ class NfcViewModel(
                 targetUrlTemplate = currentUrl,
                 userText = currentText,
                 nfcContent = content,
+                rawPayloadHex = rawPayloadHex,
                 uid = uid,
                 httpMethod = currentMethod,
                 jwtToken = jwtToken,

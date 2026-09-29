@@ -24,26 +24,28 @@ object UrlBuilder {
 
     /**
      * Builds the target URL containing the user-entered text and the NFC content.
-     * Supports both template placeholders ({text}, {nfc}, {uid}, {timestamp}, {jwt},
+     * Supports both template placeholders ({text}, {raw}, {uid}, {timestamp}, {jwt},
      * {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}) and
      * automatic query parameter appending if placeholders are not present.
      */
     fun buildUrl(
         baseUrlOrTemplate: String,
         userText: String,
-        nfcContent: String,
+        rawPayloadHex: String = "",
         uid: String,
         timestamp: Long = System.currentTimeMillis(),
         jwtToken: String = "",
-        libraryData: FinnishLibraryData? = null
+        libraryData: FinnishLibraryData? = null,
+        nfcContent: String = ""
     ): String {
         val trimmed = baseUrlOrTemplate.trim()
         if (trimmed.isEmpty()) {
             return ""
         }
 
+        val rawValue = rawPayloadHex.ifBlank { nfcContent }
         val encodedText = encode(userText)
-        val encodedNfc = encode(nfcContent)
+        val encodedRaw = encode(rawValue)
         val encodedUid = encode(uid)
         val encodedTimestamp = encode(timestamp.toString())
         val encodedJwt = encode(jwtToken)
@@ -57,7 +59,7 @@ object UrlBuilder {
         val encodedVersion = encode(libraryData?.version?.toString().orEmpty())
 
         val hasPlaceholders = trimmed.contains("{text}") ||
-                trimmed.contains("{nfc}") ||
+                trimmed.contains("{raw}") ||
                 trimmed.contains("{uid}") ||
                 trimmed.contains("{timestamp}") ||
                 trimmed.contains("{jwt}") ||
@@ -73,7 +75,7 @@ object UrlBuilder {
         return if (hasPlaceholders) {
             trimmed
                 .replace("{text}", encodedText)
-                .replace("{nfc}", encodedNfc)
+                .replace("{raw}", encodedRaw)
                 .replace("{uid}", encodedUid)
                 .replace("{timestamp}", encodedTimestamp)
                 .replace("{jwt}", encodedJwt)
@@ -87,7 +89,7 @@ object UrlBuilder {
                 .replace("{version}", encodedVersion)
         } else {
             val delimiter = if (trimmed.contains("?")) "&" else "?"
-            val baseParams = "$trimmed${delimiter}text=$encodedText&nfc=$encodedNfc&uid=$encodedUid&ts=$encodedTimestamp"
+            val baseParams = "$trimmed${delimiter}text=$encodedText&raw=$encodedRaw&uid=$encodedUid&ts=$encodedTimestamp"
             if (libraryData != null && !libraryData.isTagEmpty) {
                 val afiParam = if (encodedAfi.isNotBlank()) "&afi=$encodedAfi" else ""
                 "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion$afiParam"

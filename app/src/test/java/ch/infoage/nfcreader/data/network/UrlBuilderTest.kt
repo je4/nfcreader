@@ -24,36 +24,36 @@ class UrlBuilderTest {
 
     @Test
     fun testBuildUrlWithTemplatePlaceholders() {
-        val template = "https://example.com/scan?userText={text}&tagValue={nfc}&tagId={uid}"
+        val template = "https://example.com/scan?userText={text}&rawHex={raw}&tagId={uid}"
         val userText = "Raum 101"
-        val nfcContent = "ISO-15693-VALUE-42"
+        val rawHex = "0100010133303131"
         val uid = "E004015099887766"
 
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = template,
             userText = userText,
-            nfcContent = nfcContent,
+            rawPayloadHex = rawHex,
             uid = uid
         )
 
         assertEquals(
-            "https://example.com/scan?userText=Raum+101&tagValue=ISO-15693-VALUE-42&tagId=E004015099887766",
+            "https://example.com/scan?userText=Raum+101&rawHex=0100010133303131&tagId=E004015099887766",
             result
         )
     }
 
     @Test
     fun testBuildUrlWithJwtPlaceholder() {
-        val template = "https://example.com/webhook?user={text}&jwt={jwt}"
+        val template = "https://example.com/webhook?user={text}&jwt={jwt}&raw={raw}"
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = template,
             userText = "User1",
-            nfcContent = "NFC1",
+            rawPayloadHex = "AABBCC",
             uid = "UID1",
             jwtToken = "eyJhbGciOi..."
         )
         assertEquals(
-            "https://example.com/webhook?user=User1&jwt=eyJhbGciOi...",
+            "https://example.com/webhook?user=User1&jwt=eyJhbGciOi...&raw=AABBCC",
             result
         )
     }
@@ -62,19 +62,19 @@ class UrlBuilderTest {
     fun testBuildUrlWithNoPlaceholdersAppendsQueryParams() {
         val baseUrl = "https://api.my-server.de/nfc-endpoint"
         val userText = "Test äöü & ? = #"
-        val nfcContent = "01020304"
+        val rawHex = "01020304"
         val uid = "E004015012345678"
 
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = baseUrl,
             userText = userText,
-            nfcContent = nfcContent,
+            rawPayloadHex = rawHex,
             uid = uid,
             timestamp = 1600000000000L
         )
 
         assertTrue(result.startsWith("https://api.my-server.de/nfc-endpoint?text="))
-        assertTrue(result.contains("nfc=01020304"))
+        assertTrue(result.contains("raw=01020304"))
         assertTrue(result.contains("uid=E004015012345678"))
         assertTrue(result.contains("ts=1600000000000"))
     }
@@ -83,19 +83,19 @@ class UrlBuilderTest {
     fun testBuildUrlWithExistingQueryParams() {
         val baseUrl = "https://api.my-server.de/endpoint?apikey=secret123"
         val userText = "Test"
-        val nfcContent = "DATA"
+        val rawHex = "DATA"
         val uid = "UID1"
 
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = baseUrl,
             userText = userText,
-            nfcContent = nfcContent,
+            rawPayloadHex = rawHex,
             uid = uid,
             timestamp = 1000L
         )
 
         assertEquals(
-            "https://api.my-server.de/endpoint?apikey=secret123&text=Test&nfc=DATA&uid=UID1&ts=1000",
+            "https://api.my-server.de/endpoint?apikey=secret123&text=Test&raw=DATA&uid=UID1&ts=1000",
             result
         )
     }
@@ -105,7 +105,7 @@ class UrlBuilderTest {
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = "   ",
             userText = "Test",
-            nfcContent = "DATA",
+            rawPayloadHex = "DATA",
             uid = "UID"
         )
         assertEquals("", result)
@@ -113,7 +113,7 @@ class UrlBuilderTest {
 
     @Test
     fun testBuildUrlWithFinnishLibraryPlaceholders() {
-        val template = "https://library.org/item?id={itemid}&isil={isil}&country={country}&part={partno}&total={parts}&type={usagetype}&v={version}&status={afi}"
+        val template = "https://library.org/item?id={itemid}&isil={isil}&country={country}&part={partno}&total={parts}&type={usagetype}&v={version}&status={afi}&raw={raw}"
         val libraryData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
             uid = "E004015099887766",
             version = 1,
@@ -131,13 +131,13 @@ class UrlBuilderTest {
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = template,
             userText = "Test",
-            nfcContent = libraryData.toFormattedString(),
+            rawPayloadHex = "0100010133303131",
             uid = libraryData.uid,
             libraryData = libraryData
         )
 
         assertEquals(
-            "https://library.org/item?id=3011000123&isil=ISIL-555&country=DE&part=1&total=3&type=1&v=1&status=07",
+            "https://library.org/item?id=3011000123&isil=ISIL-555&country=DE&part=1&total=3&type=1&v=1&status=07&raw=0100010133303131",
             result
         )
     }
@@ -162,7 +162,7 @@ class UrlBuilderTest {
         val result = UrlBuilder.buildUrl(
             baseUrlOrTemplate = baseUrl,
             userText = "Filiale",
-            nfcContent = libraryData.toFormattedString(),
+            rawPayloadHex = "0102030405",
             uid = libraryData.uid,
             timestamp = 1700000000000L,
             libraryData = libraryData
@@ -170,5 +170,6 @@ class UrlBuilderTest {
 
         assertTrue(result.contains("afi=C7"))
         assertTrue(result.contains("itemid=3011000123"))
+        assertTrue(result.contains("raw=0102030405"))
     }
 }
