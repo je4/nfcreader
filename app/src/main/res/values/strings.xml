@@ -23,7 +23,6 @@
     <string name="settings_jwt_section">JWT Authentifizierung</string>
     <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
     <string name="settings_jwt_label">JWT Key / Token</string>
-    <string name="settings_jwt_hint">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</string>
     <string name="settings_save">Speichern</string>
     <string name="settings_saved_toast">Einstellungen gespeichert</string>
     <string name="action_settings">Einstellungen</string>

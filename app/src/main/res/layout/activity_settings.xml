@@ -171,12 +171,9 @@
                             android:id="@+id/etSettingsJwtKey"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="@string/settings_jwt_hint"
                             android:textColor="@color/text_primary"
-                            android:textColorHint="@color/text_secondary"
                             android:inputType="textPassword"
-                            android:fontFamily="monospace"
-                            android:textSize="13sp" />
+                            android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                 </LinearLayout>
