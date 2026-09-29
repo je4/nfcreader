@@ -16,6 +16,8 @@
 
 package ch.infoage.nfcreader.data.model
 
+import ch.infoage.nfcreader.nfc.FinnishLibraryData
+
 data class NfcScanResult(
     val id: String = java.util.UUID.randomUUID().toString(),
     val timestamp: Long = System.currentTimeMillis(),
@@ -29,7 +31,8 @@ data class NfcScanResult(
     val responseBody: String? = null,
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
-    val durationMs: Long = 0
+    val durationMs: Long = 0,
+    val libraryData: FinnishLibraryData? = null
 )
 
 data class ScanResponse(

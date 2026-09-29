@@ -129,6 +129,17 @@ class MainActivity : AppCompatActivity() {
                             binding.tvLastScanDetails.text = buildString {
                                 append("UID: ").append(lastScan.uid)
                                 append(" (").append(lastScan.tagType).append(")\n")
+                                if (lastScan.libraryData != null && !lastScan.libraryData.isTagEmpty) {
+                                    val lib = lastScan.libraryData
+                                    append("Item-ID: ").append(lib.itemId.ifBlank { "(keine)" }).append("\n")
+                                    val isilStr = listOfNotNull(lib.country.takeIf { it.isNotBlank() }, lib.isil.takeIf { it.isNotBlank() })
+                                        .joinToString("-")
+                                    append("Bibliothek / ISIL: ").append(isilStr.ifBlank { "(keine)" }).append("\n")
+                                    append("Teil: ").append(lib.partNo).append(" von ").append(lib.parts)
+                                    append(" | Typ: ").append(lib.usageType)
+                                    append(" | Version: ").append(lib.version)
+                                    append(" | CRC: ").append(if (lib.isCrcValid) "OK" else "Fehler (${lib.crcHex})").append("\n")
+                                }
                                 append("Text: \"").append(lastScan.userText).append("\"\n")
                                 append("NFC: ").append(lastScan.content)
                             }

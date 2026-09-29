@@ -20,7 +20,9 @@ import android.nfc.Tag
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.infoage.nfcreader.data.model.NfcScanResult
+import ch.infoage.nfcreader.data.network.JwtGenerator
 import ch.infoage.nfcreader.data.network.UrlDispatcher
+import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.Iso15693Parser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,27 +92,47 @@ class NfcViewModel(
         processScan(
             uid = parsed.uid,
             tagType = parsed.tagType,
-            content = content
+            content = content,
+            libraryData = parsed.libraryData
         )
     }
 
     fun triggerTestScan(mockContent: String? = null) {
         val randomSuffix = (1000..9999).random()
         val mockUid = "E0040150${randomSuffix}ABCD"
-        val content = mockContent ?: "ISO15693-DATA-BLOCK-$randomSuffix"
+        val mockLibraryData = FinnishLibraryData(
+            uid = mockUid,
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "3011$randomSuffix",
+            country = "CH",
+            isil = "ISIL-123",
+            isCrcValid = true,
+            isTagEmpty = false,
+            crcHex = "A1B2"
+        )
+        val content = mockContent ?: mockLibraryData.toFormattedString()
 
         processScan(
             uid = mockUid,
             tagType = "ISO 15693 (NfcV - Test)",
-            content = content
+            content = content,
+            libraryData = if (mockContent == null) mockLibraryData else null
         )
     }
 
-    fun processScan(uid: String, tagType: String, content: String) {
+    fun processScan(
+        uid: String,
+        tagType: String,
+        content: String,
+        libraryData: FinnishLibraryData? = null
+    ) {
         val currentText = _userText.value
         val currentUrl = _targetUrl.value
         val currentMethod = _httpMethod.value
-        val currentJwt = _jwtKey.value
+        val currentKey = _jwtKey.value
 
         // Throttle identical scans within 500ms
         val now = System.currentTimeMillis()
@@ -121,13 +143,24 @@ class NfcViewModel(
         lastScannedTime = now
 
         viewModelScope.launch {
+            val jwtToken = if (currentKey.isNotBlank()) {
+                JwtGenerator.generateToken(
+                    secret = currentKey,
+                    validitySeconds = 60,
+                    issuedAtMillis = now
+                )
+            } else {
+                null
+            }
+
             val pendingScan = NfcScanResult(
                 uid = uid,
                 tagType = tagType,
                 content = content,
                 userText = currentText,
                 requestUrl = currentUrl,
-                httpMethod = currentMethod
+                httpMethod = currentMethod,
+                libraryData = libraryData
             )
 
             val result = urlDispatcher.dispatchScan(
@@ -136,7 +169,8 @@ class NfcViewModel(
                 nfcContent = content,
                 uid = uid,
                 httpMethod = currentMethod,
-                jwtToken = currentJwt
+                jwtToken = jwtToken,
+                libraryData = libraryData
             )
 
             val completedScan = if (result.isSuccess) {

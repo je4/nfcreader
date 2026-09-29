@@ -27,7 +27,8 @@ data class ParsedNfcTag(
     val tagType: String,
     val rawPayloadHex: String,
     val textContent: String?,
-    val fullSummary: String
+    val fullSummary: String,
+    val libraryData: FinnishLibraryData? = null
 )
 
 object Iso15693Parser {
@@ -57,6 +58,11 @@ object Iso15693Parser {
         // Try reading raw blocks via NfcV if available
         val nfcvData = if (isIso15693) readNfcVBlocks(tag) else null
 
+        // Try parsing Finnish Library Data Model if raw NFC-V bytes available
+        val libraryData = if (nfcvData != null && nfcvData.isNotEmpty()) {
+            FinnishDataModelParser.parse(uidHex, nfcvData)
+        } else null
+
         val rawPayloadHex = when {
             nfcvData != null && nfcvData.isNotEmpty() -> bytesToHex(nfcvData)
             ndefText != null -> bytesToHex(ndefText.toByteArray(StandardCharsets.UTF_8))
@@ -64,19 +70,21 @@ object Iso15693Parser {
         }
 
         val textContent = when {
+            libraryData != null && !libraryData.isTagEmpty -> libraryData.toFormattedString()
             !ndefText.isNullOrBlank() -> ndefText
             nfcvData != null && nfcvData.isNotEmpty() -> parseAsciiIfPossible(nfcvData)
             else -> null
         }
 
-        val fullSummary = buildSummary(uidHex, textContent, rawPayloadHex)
+        val fullSummary = buildSummary(uidHex, textContent, rawPayloadHex, libraryData)
 
         return ParsedNfcTag(
             uid = uidHex,
             tagType = tagType,
             rawPayloadHex = rawPayloadHex,
             textContent = textContent,
-            fullSummary = fullSummary
+            fullSummary = fullSummary,
+            libraryData = libraryData
         )
     }
 
@@ -176,10 +184,25 @@ object Iso15693Parser {
         return null
     }
 
-    private fun buildSummary(uid: String, text: String?, rawHex: String): String {
+    private fun buildSummary(
+        uid: String,
+        text: String?,
+        rawHex: String,
+        libraryData: FinnishLibraryData? = null
+    ): String {
         return buildString {
             append("UID: ").append(uid)
-            if (!text.isNullOrBlank()) {
+            if (libraryData != null && !libraryData.isTagEmpty) {
+                append(" | Item-ID: ").append(libraryData.itemId.ifBlank { "(keine)" })
+                if (libraryData.country.isNotBlank() || libraryData.isil.isNotBlank()) {
+                    val isilCode = listOfNotNull(libraryData.country.takeIf { it.isNotBlank() }, libraryData.isil.takeIf { it.isNotBlank() })
+                        .joinToString("-")
+                    append(" | ISIL: ").append(isilCode)
+                }
+                append(" | Teil: ").append(libraryData.partNo).append("/").append(libraryData.parts)
+                append(" | Typ: ").append(libraryData.usageType)
+                append(" | CRC: ").append(if (libraryData.isCrcValid) "OK" else "Fehler")
+            } else if (!text.isNullOrBlank()) {
                 append(" | Inhalt: ").append(text)
             } else if (rawHex.isNotBlank()) {
                 append(" | Hex: ").append(rawHex.take(32))

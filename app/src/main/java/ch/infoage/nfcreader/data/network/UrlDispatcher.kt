@@ -17,6 +17,7 @@
 package ch.infoage.nfcreader.data.network
 
 import ch.infoage.nfcreader.data.model.ScanResponse
+import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,7 +44,8 @@ class UrlDispatcher(
         nfcContent: String,
         uid: String,
         httpMethod: String = "GET",
-        jwtToken: String? = null
+        jwtToken: String? = null,
+        libraryData: FinnishLibraryData? = null
     ): Result<ScanResponse> = withContext(dispatcher) {
         val startTime = System.currentTimeMillis()
         try {
@@ -53,7 +55,8 @@ class UrlDispatcher(
                 nfcContent = nfcContent,
                 uid = uid,
                 timestamp = startTime,
-                jwtToken = jwtToken.orEmpty()
+                jwtToken = jwtToken.orEmpty(),
+                libraryData = libraryData
             )
 
             if (fullUrl.isBlank()) {
@@ -70,6 +73,16 @@ class UrlDispatcher(
                     put("timestamp", startTime)
                     if (!jwtToken.isNullOrBlank()) {
                         put("jwt", jwtToken)
+                    }
+                    if (libraryData != null && !libraryData.isTagEmpty) {
+                        put("itemId", libraryData.itemId)
+                        put("country", libraryData.country)
+                        put("isil", libraryData.isil)
+                        put("parts", libraryData.parts)
+                        put("partNo", libraryData.partNo)
+                        put("usageType", libraryData.usageType)
+                        put("version", libraryData.version)
+                        put("isCrcValid", libraryData.isCrcValid)
                     }
                 }.toString()
 

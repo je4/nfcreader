@@ -110,4 +110,34 @@ class UrlBuilderTest {
         )
         assertEquals("", result)
     }
+
+    @Test
+    fun testBuildUrlWithFinnishLibraryPlaceholders() {
+        val template = "https://library.org/item?id={itemid}&isil={isil}&country={country}&part={partno}&total={parts}&type={usagetype}&v={version}"
+        val libraryData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015099887766",
+            version = 1,
+            usageType = 1,
+            parts = 3,
+            partNo = 1,
+            itemId = "3011000123",
+            country = "DE",
+            isil = "ISIL-555",
+            isCrcValid = true,
+            isTagEmpty = false
+        )
+
+        val result = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = template,
+            userText = "Test",
+            nfcContent = libraryData.toFormattedString(),
+            uid = libraryData.uid,
+            libraryData = libraryData
+        )
+
+        assertEquals(
+            "https://library.org/item?id=3011000123&isil=ISIL-555&country=DE&part=1&total=3&type=1&v=1",
+            result
+        )
+    }
 }

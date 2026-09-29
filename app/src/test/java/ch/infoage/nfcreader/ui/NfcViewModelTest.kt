@@ -16,6 +16,7 @@
 
 package ch.infoage.nfcreader.ui
 
+import ch.infoage.nfcreader.data.network.JwtGenerator
 import ch.infoage.nfcreader.data.network.UrlDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -96,7 +97,17 @@ class NfcViewModelTest {
         advanceUntilIdle()
 
         val recorded = mockWebServer.takeRequest()
-        assertEquals("Bearer jwt-secret-abc", recorded.getHeader("Authorization"))
+        val authHeader = recorded.getHeader("Authorization")
+        assertNotNull(authHeader)
+        assertTrue(authHeader!!.startsWith("Bearer "))
+        val token = authHeader.removePrefix("Bearer ")
+        assertTrue(JwtGenerator.verifySignature(token, "jwt-secret-abc"))
+
+        val payload = JwtGenerator.parsePayload(token)
+        assertNotNull(payload)
+        val iat = payload!!.getLong("iat")
+        val exp = payload.getLong("exp")
+        assertEquals(60L, exp - iat)
 
         val lastScan = viewModel.lastScan.value
         assertNotNull(lastScan)

@@ -53,7 +53,14 @@ class ScanHistoryAdapter : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanVie
             val context = binding.root.context
             binding.tvLogTagUid.text = "UID: ${item.uid} (${item.tagType})"
             binding.tvLogUserText.text = "Eingegebener Text: \"${item.userText}\""
-            binding.tvLogNfcContent.text = "NFC-Wert: ${item.content}"
+            if (item.libraryData != null && !item.libraryData.isTagEmpty) {
+                val lib = item.libraryData
+                val isilStr = listOfNotNull(lib.country.takeIf { it.isNotBlank() }, lib.isil.takeIf { it.isNotBlank() })
+                    .joinToString("-")
+                binding.tvLogNfcContent.text = "Item-ID: ${lib.itemId.ifBlank { "-" }} | ISIL: ${isilStr.ifBlank { "-" }} | Teil: ${lib.partNo}/${lib.parts}"
+            } else {
+                binding.tvLogNfcContent.text = "NFC-Wert: ${item.content}"
+            }
             binding.tvLogUrl.text = "URL: ${item.requestUrl}"
             binding.tvLogTimestamp.text = timeFormat.format(Date(item.timestamp))
 

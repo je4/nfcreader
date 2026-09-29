@@ -16,6 +16,7 @@
 
 package ch.infoage.nfcreader.data.network
 
+import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -23,7 +24,8 @@ object UrlBuilder {
 
     /**
      * Builds the target URL containing the user-entered text and the NFC content.
-     * Supports both template placeholders ({text}, {nfc}, {uid}, {timestamp}) and
+     * Supports both template placeholders ({text}, {nfc}, {uid}, {timestamp}, {jwt},
+     * {itemid}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}) and
      * automatic query parameter appending if placeholders are not present.
      */
     fun buildUrl(
@@ -32,7 +34,8 @@ object UrlBuilder {
         nfcContent: String,
         uid: String,
         timestamp: Long = System.currentTimeMillis(),
-        jwtToken: String = ""
+        jwtToken: String = "",
+        libraryData: FinnishLibraryData? = null
     ): String {
         val trimmed = baseUrlOrTemplate.trim()
         if (trimmed.isEmpty()) {
@@ -44,12 +47,26 @@ object UrlBuilder {
         val encodedUid = encode(uid)
         val encodedTimestamp = encode(timestamp.toString())
         val encodedJwt = encode(jwtToken)
+        val encodedItemId = encode(libraryData?.itemId.orEmpty())
+        val encodedCountry = encode(libraryData?.country.orEmpty())
+        val encodedIsil = encode(libraryData?.isil.orEmpty())
+        val encodedParts = encode(libraryData?.parts?.toString().orEmpty())
+        val encodedPartNo = encode(libraryData?.partNo?.toString().orEmpty())
+        val encodedUsageType = encode(libraryData?.usageType?.toString().orEmpty())
+        val encodedVersion = encode(libraryData?.version?.toString().orEmpty())
 
         val hasPlaceholders = trimmed.contains("{text}") ||
                 trimmed.contains("{nfc}") ||
                 trimmed.contains("{uid}") ||
                 trimmed.contains("{timestamp}") ||
-                trimmed.contains("{jwt}")
+                trimmed.contains("{jwt}") ||
+                trimmed.contains("{itemid}") ||
+                trimmed.contains("{country}") ||
+                trimmed.contains("{isil}") ||
+                trimmed.contains("{parts}") ||
+                trimmed.contains("{partno}") ||
+                trimmed.contains("{usagetype}") ||
+                trimmed.contains("{version}")
 
         return if (hasPlaceholders) {
             trimmed
@@ -58,9 +75,21 @@ object UrlBuilder {
                 .replace("{uid}", encodedUid)
                 .replace("{timestamp}", encodedTimestamp)
                 .replace("{jwt}", encodedJwt)
+                .replace("{itemid}", encodedItemId)
+                .replace("{country}", encodedCountry)
+                .replace("{isil}", encodedIsil)
+                .replace("{parts}", encodedParts)
+                .replace("{partno}", encodedPartNo)
+                .replace("{usagetype}", encodedUsageType)
+                .replace("{version}", encodedVersion)
         } else {
             val delimiter = if (trimmed.contains("?")) "&" else "?"
-            "$trimmed${delimiter}text=$encodedText&nfc=$encodedNfc&uid=$encodedUid&ts=$encodedTimestamp"
+            val baseParams = "$trimmed${delimiter}text=$encodedText&nfc=$encodedNfc&uid=$encodedUid&ts=$encodedTimestamp"
+            if (libraryData != null && !libraryData.isTagEmpty) {
+                "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion"
+            } else {
+                baseParams
+            }
         }
     }
 
