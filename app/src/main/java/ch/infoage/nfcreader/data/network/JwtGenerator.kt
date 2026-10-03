@@ -19,6 +19,8 @@ package ch.infoage.nfcreader.data.network
 import org.json.JSONObject
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 object JwtGenerator {
 
@@ -100,66 +102,20 @@ object JwtGenerator {
         }
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
+    private val base64UrlFormat = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
+
     /**
      * URL-safe Base64 encoding without padding (RFC 7515 / RFC 4648 Section 5).
      */
-    fun base64UrlEncode(data: ByteArray): String {
-        val table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-        val sb = StringBuilder((data.size * 4 + 2) / 3)
-        var i = 0
-        while (i < data.size) {
-            val b1 = data[i++].toInt() and 0xFF
-            sb.append(table[b1 shr 2])
-            if (i < data.size) {
-                val b2 = data[i++].toInt() and 0xFF
-                sb.append(table[((b1 and 0x03) shl 4) or (b2 shr 4)])
-                if (i < data.size) {
-                    val b3 = data[i++].toInt() and 0xFF
-                    sb.append(table[((b2 and 0x0F) shl 2) or (b3 shr 6)])
-                    sb.append(table[b3 and 0x3F])
-                } else {
-                    sb.append(table[(b2 and 0x0F) shl 2])
-                }
-            } else {
-                sb.append(table[(b1 and 0x03) shl 4])
-            }
-        }
-        return sb.toString()
-    }
+    @OptIn(ExperimentalEncodingApi::class)
+    fun base64UrlEncode(data: ByteArray): String =
+        base64UrlFormat.encode(data)
 
     /**
      * Decodes Base64Url string to ByteArray.
      */
-    fun base64UrlDecode(str: String): ByteArray {
-        val clean = str.trim().replace("\r", "").replace("\n", "")
-        val padding = (4 - (clean.length % 4)) % 4
-        val padded = clean + "=".repeat(padding)
-        val standardBase64 = padded.replace('-', '+').replace('_', '/')
-        val table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
-        val byteList = mutableListOf<Byte>()
-        var i = 0
-        while (i < standardBase64.length) {
-            val c1 = standardBase64[i++]
-            val c2 = standardBase64[i++]
-            val c3 = standardBase64[i++]
-            val c4 = standardBase64[i++]
-
-            val b1 = table.indexOf(c1)
-            val b2 = table.indexOf(c2)
-            val b3 = if (c3 == '=') -1 else table.indexOf(c3)
-            val b4 = if (c4 == '=') -1 else table.indexOf(c4)
-
-            if (b1 >= 0 && b2 >= 0) {
-                byteList.add(((b1 shl 2) or (b2 shr 4)).toByte())
-                if (b3 >= 0) {
-                    byteList.add((((b2 and 0x0F) shl 4) or (b3 shr 2)).toByte())
-                    if (b4 >= 0) {
-                        byteList.add((((b3 and 0x03) shl 6) or b4).toByte())
-                    }
-                }
-            }
-        }
-        return byteList.toByteArray()
-    }
+    @OptIn(ExperimentalEncodingApi::class)
+    fun base64UrlDecode(str: String): ByteArray =
+        base64UrlFormat.decode(str.trim())
 }

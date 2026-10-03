@@ -3,7 +3,7 @@
     <string name="user_text_label">Standort</string>
     <string name="user_text_hint">Standort eingeben</string>
     <string name="target_url_label">Ziel-URL</string>
-    <string name="target_url_hint">https://example.com/api?text={text}&amp;itemid={itemid}&amp;afi={afi}</string>
+    <string name="target_url_hint">https://example.com/api?marker={marker}&amp;itemid={itemid}&amp;afi={afi}</string>
     <string name="nfc_status_ready">Bereit für ISO 15693 NFC-Scan</string>
     <string name="nfc_status_disabled">NFC ist deaktiviert. Bitte in Einstellungen aktivieren.</string>
     <string name="nfc_status_unsupported">Dieses Gerät unterstützt kein NFC.</string>
@@ -19,10 +19,15 @@
     <!-- Settings Strings -->
     <string name="settings_title">Einstellungen</string>
     <string name="settings_target_url_section">Ziel-URL Konfiguration</string>
-    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {text}, {uid}, {raw}, {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {timestamp}, {jwt}</string>
+    <string name="settings_target_url_desc">Die Ziel-URL, an die NFC-Scan-Ereignisse übermittelt werden.\nPlatzhalter: {marker}, {session}, {uid}, {raw}, {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {timestamp}, {jwt}</string>
     <string name="settings_jwt_section">JWT Authentifizierung</string>
     <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
     <string name="settings_jwt_label">JWT Key / Token</string>
+    <string name="settings_debug_section">Debug-Modus</string>
+    <string name="settings_debug_desc">Gibt bei jedem Scan-Vorgang den vollständigen HTTP-Request (URL, Header, Body) aus.</string>
+    <string name="settings_debug_label">HTTP-Request Debug aktivieren</string>
+    <string name="btn_copy_debug">Kopieren</string>
+    <string name="debug_copied_to_clipboard">Debug-Ausgabe in Zwischenablage kopiert</string>
     <string name="settings_save">Speichern</string>
     <string name="settings_saved_toast">Einstellungen gespeichert</string>
     <string name="action_settings">Einstellungen</string>

@@ -55,6 +55,7 @@ class SettingsActivity : AppCompatActivity() {
             binding.rbSettingsGet.isChecked = true
         }
         binding.etSettingsJwtKey.setText(appSettings.jwtKey)
+        binding.switchSettingsDebugMode.isChecked = appSettings.debugMode
     }
 
     private fun setupListeners() {
@@ -69,10 +70,12 @@ class SettingsActivity : AppCompatActivity() {
         val targetUrl = binding.etSettingsTargetUrl.text?.toString().orEmpty().trim()
         val httpMethod = if (binding.rbSettingsPost.isChecked) "POST" else "GET"
         val jwtKey = binding.etSettingsJwtKey.text?.toString().orEmpty().trim()
+        val debugMode = binding.switchSettingsDebugMode.isChecked
 
         appSettings.targetUrl = if (targetUrl.isNotBlank()) targetUrl else AppSettings.DEFAULT_TARGET_URL
         appSettings.httpMethod = httpMethod
         appSettings.jwtKey = jwtKey
+        appSettings.debugMode = debugMode
         setResult(RESULT_OK)
     }
 }

@@ -53,10 +53,11 @@ class UrlDispatcherTest {
         val baseUrl = mockWebServer.url("/scan").toString()
         val result = urlDispatcher.dispatchScan(
             targetUrlTemplate = baseUrl,
-            userText = "Scanner1",
+            marker = "Scanner1",
             nfcContent = "TAG-VALUE-123",
             uid = "E004015011223344",
-            httpMethod = "GET"
+            httpMethod = "GET",
+            session = "Device_20261003"
         )
 
         assertTrue(result.isSuccess)
@@ -66,7 +67,8 @@ class UrlDispatcherTest {
 
         val recordedRequest = mockWebServer.takeRequest()
         assertEquals("GET", recordedRequest.method)
-        assertTrue(recordedRequest.path?.contains("text=Scanner1") == true)
+        assertTrue(recordedRequest.path?.contains("marker=Scanner1") == true)
+        assertTrue(recordedRequest.path?.contains("session=Device_20261003") == true)
         assertTrue(recordedRequest.path?.contains("raw=TAG-VALUE-123") == true)
     }
 
@@ -78,13 +80,14 @@ class UrlDispatcherTest {
                 .setBody("{\"created\":true}")
         )
 
-        val baseUrl = mockWebServer.url("/api/post-scan").toString()
+        val baseUrl = mockWebServer.url("/api/post-scan?ignore=me").toString()
         val result = urlDispatcher.dispatchScan(
             targetUrlTemplate = baseUrl,
-            userText = "ScannerPost",
+            marker = "ScannerPost",
             rawPayloadHex = "ISO15693-VALUE",
             uid = "E00401509988",
-            httpMethod = "POST"
+            httpMethod = "POST",
+            session = "Handheld_20261003"
         )
 
         assertTrue(result.isSuccess)
@@ -93,8 +96,11 @@ class UrlDispatcherTest {
 
         val recordedRequest = mockWebServer.takeRequest()
         assertEquals("POST", recordedRequest.method)
+        // Beim POST Aufruf sollen keine GET-Parameter vorhanden sein
+        assertEquals("/api/post-scan", recordedRequest.path)
         val bodyText = recordedRequest.body.readUtf8()
-        assertTrue(bodyText.contains("\"text\":\"ScannerPost\""))
+        assertTrue(bodyText.contains("\"marker\":\"ScannerPost\""))
+        assertTrue(bodyText.contains("\"session\":\"Handheld_20261003\""))
         assertTrue(bodyText.contains("\"raw\":\"ISO15693-VALUE\""))
     }
 
@@ -166,5 +172,66 @@ class UrlDispatcherTest {
         )
 
         assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun testScanResponseContainsHttpRequestDebugDetails() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"ok\":true}")
+        )
+
+        val baseUrl = mockWebServer.url("/debug-test").toString()
+        val result = urlDispatcher.dispatchScan(
+            targetUrlTemplate = baseUrl,
+            marker = "DebugMarker",
+            nfcContent = "DEBUG-NFC",
+            uid = "E00401501234",
+            httpMethod = "POST",
+            jwtToken = "debug-jwt-token",
+            jwtKey = "test-secret-key"
+        )
+
+        assertTrue(result.isSuccess)
+        val response = result.getOrThrow()
+        assertTrue(response.httpRequestDebug.contains("URL: "))
+        assertTrue(response.httpRequestDebug.contains("Method: POST"))
+        assertTrue(response.httpRequestDebug.contains("Authorization: Bearer debug-jwt-token"))
+        assertTrue(response.httpRequestDebug.contains("\"marker\":\"DebugMarker\""))
+        assertTrue(response.requestHeaders.containsKey("User-Agent"))
+        assertEquals("Bearer debug-jwt-token", response.requestHeaders["Authorization"])
+        assertEquals("test-secret-key", response.jwtKey)
+        assertTrue(response.requestBody?.contains("\"uid\":\"E00401501234\"") == true)
+    }
+
+    @Test
+    fun testPrepareRequestForGetAndPost() {
+        val preparedGet = urlDispatcher.prepareRequest(
+            targetUrlTemplate = "https://example.com/api",
+            marker = "GetMarker",
+            uid = "E004UID",
+            httpMethod = "GET",
+            jwtToken = "token123",
+            jwtKey = "secret-jwt-xyz"
+        )
+        assertEquals("GET", preparedGet.httpMethod)
+        assertTrue(preparedGet.fullUrl.contains("https://example.com/api"))
+        assertEquals("Bearer token123", preparedGet.headers["Authorization"])
+        assertEquals(null, preparedGet.body)
+        assertTrue(preparedGet.debugString.contains("Method: GET"))
+        assertTrue(preparedGet.debugString.contains("Authorization: Bearer token123"))
+        assertTrue(preparedGet.debugString.contains("Body: (kein Body)"))
+
+        val preparedPost = urlDispatcher.prepareRequest(
+            targetUrlTemplate = "https://example.com/post-api",
+            marker = "PostMarker",
+            uid = "E004UID2",
+            httpMethod = "POST"
+        )
+        assertEquals("POST", preparedPost.httpMethod)
+        assertTrue(preparedPost.body?.contains("\"marker\":\"PostMarker\"") == true)
+        assertTrue(preparedPost.debugString.contains("Method: POST"))
+        assertTrue(preparedPost.debugString.contains("\"marker\":\"PostMarker\""))
     }
 }

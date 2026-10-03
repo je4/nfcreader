@@ -16,8 +16,12 @@
 
 package ch.infoage.nfcreader.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -29,9 +33,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class ScanHistoryAdapter : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanViewHolder>(DiffCallback) {
+class ScanHistoryAdapter(
+    private var isDebugMode: Boolean = false
+) : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanViewHolder>(DiffCallback) {
 
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+
+    fun setDebugMode(debug: Boolean) {
+        if (isDebugMode != debug) {
+            isDebugMode = debug
+            notifyDataSetChanged()
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ScanViewHolder {
         val binding = ItemScanLogBinding.inflate(
@@ -52,7 +65,7 @@ class ScanHistoryAdapter : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanVie
         fun bind(item: NfcScanResult) {
             val context = binding.root.context
             binding.tvLogTagUid.text = "UID: ${item.uid} (${item.tagType})"
-            binding.tvLogUserText.text = "Eingegebener Text: \"${item.userText}\""
+            binding.tvLogUserText.text = "Standort: \"${item.location}\""
             if (item.libraryData != null && !item.libraryData.isTagEmpty) {
                 val lib = item.libraryData
                 val isilStr = listOfNotNull(lib.country.takeIf { it.isNotBlank() }, lib.isil.takeIf { it.isNotBlank() })
@@ -69,8 +82,22 @@ class ScanHistoryAdapter : ListAdapter<NfcScanResult, ScanHistoryAdapter.ScanVie
             } else {
                 binding.tvLogNfcContent.text = "NFC-Wert: ${item.content}"
             }
-            binding.tvLogUrl.text = "URL: ${item.requestUrl}"
             binding.tvLogTimestamp.text = timeFormat.format(Date(item.timestamp))
+
+            if (isDebugMode && !item.httpRequestDebug.isNullOrBlank()) {
+                binding.layoutLogDebugContainer.visibility = android.view.View.VISIBLE
+                binding.tvLogDebugRequest.text = item.httpRequestDebug
+                binding.btnCopyLogDebug.setOnClickListener {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    if (clipboard != null) {
+                        val clip = ClipData.newPlainText("HTTP-Request Debug", item.httpRequestDebug)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, R.string.debug_copied_to_clipboard, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                binding.layoutLogDebugContainer.visibility = android.view.View.GONE
+            }
 
             if (item.isSuccess) {
                 binding.tvLogStatusBadge.text = "HTTP ${item.httpStatus ?: 200}"

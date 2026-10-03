@@ -71,6 +71,9 @@ class NfcViewModelTest {
         viewModel.setJwtKey("test.jwt.key")
         assertEquals("test.jwt.key", viewModel.jwtKey.value)
 
+        viewModel.setDebugMode(true)
+        assertEquals(true, viewModel.debugMode.value)
+
         viewModel.setScanningActive(false)
         assertEquals(false, viewModel.isScanningActive.value)
     }
@@ -113,11 +116,13 @@ class NfcViewModelTest {
         val lastScan = viewModel.lastScan.value
         assertNotNull(lastScan)
         assertEquals("E004015099887766", lastScan?.uid)
-        assertEquals("Kiste A-9", lastScan?.userText)
+        assertEquals("Kiste A-9", lastScan?.location)
         assertEquals("PAYLOAD-BLOCK-DATA", lastScan?.content)
         assertEquals("01020304", lastScan?.rawPayloadHex)
         assertEquals(200, lastScan?.httpStatus)
         assertTrue(lastScan?.isSuccess == true)
+        assertNotNull(lastScan?.httpRequestDebug)
+        assertTrue(lastScan?.httpRequestDebug?.contains("URL: ") == true)
 
         val history = viewModel.scanHistory.value
         assertEquals(1, history.size)
@@ -126,5 +131,47 @@ class NfcViewModelTest {
         viewModel.clearHistory()
         assertTrue(viewModel.scanHistory.value.isEmpty())
         assertEquals(null, viewModel.lastScan.value)
+    }
+
+    @Test
+    fun testProcessScanWithDebugModeAndPost() = runTest {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"success\":true}")
+        )
+
+        val serverUrl = mockWebServer.url("/post-debug").toString()
+        viewModel.setTargetUrl(serverUrl)
+        viewModel.setHttpMethod("POST")
+        viewModel.setUserText("DebugUserText")
+        viewModel.setJwtKey("secret123")
+        viewModel.setDebugMode(true)
+
+        viewModel.processScan(
+            uid = "E004015099999999",
+            tagType = "ISO 15693 (NfcV)",
+            content = "HEX-DATA",
+            rawPayloadHex = "AABBCCDD"
+        )
+
+        advanceUntilIdle()
+
+        val lastScan = viewModel.lastScan.value
+        assertNotNull(lastScan)
+        assertEquals("E004015099999999", lastScan?.uid)
+        assertEquals("POST", lastScan?.httpMethod)
+        assertEquals("secret123", lastScan?.jwtKey)
+        val authHeader = lastScan?.requestHeaders?.get("Authorization")
+        assertNotNull(authHeader)
+        assertTrue(authHeader!!.startsWith("Bearer eyJ"))
+        val token = authHeader.removePrefix("Bearer ")
+        assertTrue(JwtGenerator.verifySignature(token, "secret123"))
+
+        assertTrue(lastScan.requestBody?.contains("\"marker\":\"DebugUserText\"") == true)
+        assertTrue(lastScan.requestBody?.contains("\"raw\":\"AABBCCDD\"") == true)
+        assertTrue(lastScan.httpRequestDebug?.contains("Method: POST") == true)
+        assertTrue(lastScan.httpRequestDebug?.contains("Authorization: Bearer eyJ") == true)
+        assertTrue(lastScan.httpRequestDebug?.contains("\"marker\":\"DebugUserText\"") == true)
     }
 }

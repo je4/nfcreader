@@ -38,79 +38,160 @@ class UrlDispatcher(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
-    suspend fun dispatchScan(
+    data class PreparedRequest(
+        val request: Request,
+        val fullUrl: String,
+        val httpMethod: String,
+        val headers: Map<String, String>,
+        val body: String?,
+        val debugString: String
+    )
+
+    fun prepareRequest(
         targetUrlTemplate: String,
-        userText: String,
+        marker: String = "",
+        userText: String = "",
         nfcContent: String = "",
         rawPayloadHex: String = "",
         uid: String,
         httpMethod: String = "GET",
         jwtToken: String? = null,
-        libraryData: FinnishLibraryData? = null
+        jwtKey: String? = null,
+        libraryData: FinnishLibraryData? = null,
+        session: String = "",
+        deviceName: String = "",
+        timestamp: Long = System.currentTimeMillis()
+    ): PreparedRequest {
+        val actualMarker = marker.ifBlank { userText }
+        val actualSession = session.ifBlank { UrlBuilder.generateSession(deviceName, timestamp) }
+
+        val fullUrl = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = targetUrlTemplate,
+            marker = actualMarker,
+            rawPayloadHex = rawPayloadHex,
+            uid = uid,
+            timestamp = timestamp,
+            jwtToken = jwtToken.orEmpty(),
+            libraryData = libraryData,
+            nfcContent = nfcContent,
+            session = actualSession,
+            deviceName = deviceName,
+            httpMethod = httpMethod
+        )
+
+        if (fullUrl.isBlank()) {
+            throw IllegalArgumentException("URL darf nicht leer sein")
+        }
+
+        val requestBuilder = Request.Builder().url(fullUrl)
+        var outgoingBody: String? = null
+
+        if (httpMethod.equals("POST", ignoreCase = true)) {
+            val jsonBody = JSONObject().apply {
+                put("marker", actualMarker)
+                put("session", actualSession)
+                put("raw", rawPayloadHex.ifBlank { nfcContent })
+                put("uid", uid)
+                put("timestamp", timestamp)
+                if (!jwtToken.isNullOrBlank()) {
+                    put("jwt", jwtToken)
+                }
+                if (libraryData != null && !libraryData.isTagEmpty) {
+                    put("itemId", libraryData.itemId)
+                    if (libraryData.afi.isNotBlank()) {
+                        put("afi", libraryData.afi)
+                    }
+                    put("country", libraryData.country)
+                    put("isil", libraryData.isil)
+                    put("parts", libraryData.parts)
+                    put("partNo", libraryData.partNo)
+                    put("usageType", libraryData.usageType)
+                    put("version", libraryData.version)
+                    put("isCrcValid", libraryData.isCrcValid)
+                }
+            }.toString()
+
+            outgoingBody = jsonBody
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = jsonBody.toRequestBody(mediaType)
+            requestBuilder.post(requestBody)
+        } else {
+            requestBuilder.get()
+        }
+
+        requestBuilder.header("User-Agent", "Iso15693NfcReader/1.0 (Android)")
+        requestBuilder.header("Accept", "application/json, text/plain, */*")
+
+        if (!jwtToken.isNullOrBlank()) {
+            val authHeader = if (jwtToken.startsWith("Bearer ", ignoreCase = true)) {
+                jwtToken
+            } else {
+                "Bearer $jwtToken"
+            }
+            requestBuilder.header("Authorization", authHeader)
+        }
+
+        val request = requestBuilder.build()
+        val headersMap = mutableMapOf<String, String>()
+        for (i in 0 until request.headers.size) {
+            headersMap[request.headers.name(i)] = request.headers.value(i)
+        }
+        if (request.body != null && !headersMap.containsKey("Content-Type")) {
+            request.body?.contentType()?.let {
+                headersMap["Content-Type"] = it.toString()
+            }
+        }
+
+        val debugString = formatHttpRequestDebug(
+            method = request.method,
+            url = fullUrl,
+            headers = headersMap,
+            body = outgoingBody
+        )
+
+        return PreparedRequest(
+            request = request,
+            fullUrl = fullUrl,
+            httpMethod = request.method,
+            headers = headersMap,
+            body = outgoingBody,
+            debugString = debugString
+        )
+    }
+
+    suspend fun dispatchScan(
+        targetUrlTemplate: String,
+        marker: String = "",
+        userText: String = "",
+        nfcContent: String = "",
+        rawPayloadHex: String = "",
+        uid: String,
+        httpMethod: String = "GET",
+        jwtToken: String? = null,
+        jwtKey: String? = null,
+        libraryData: FinnishLibraryData? = null,
+        session: String = "",
+        deviceName: String = ""
     ): Result<ScanResponse> = withContext(dispatcher) {
         val startTime = System.currentTimeMillis()
         try {
-            val fullUrl = UrlBuilder.buildUrl(
-                baseUrlOrTemplate = targetUrlTemplate,
+            val prepared = prepareRequest(
+                targetUrlTemplate = targetUrlTemplate,
+                marker = marker,
                 userText = userText,
+                nfcContent = nfcContent,
                 rawPayloadHex = rawPayloadHex,
                 uid = uid,
-                timestamp = startTime,
-                jwtToken = jwtToken.orEmpty(),
+                httpMethod = httpMethod,
+                jwtToken = jwtToken,
+                jwtKey = jwtKey,
                 libraryData = libraryData,
-                nfcContent = nfcContent
+                session = session,
+                deviceName = deviceName,
+                timestamp = startTime
             )
 
-            if (fullUrl.isBlank()) {
-                return@withContext Result.failure(IllegalArgumentException("URL darf nicht leer sein"))
-            }
-
-            val requestBuilder = Request.Builder().url(fullUrl)
-
-            if (httpMethod.equals("POST", ignoreCase = true)) {
-                val jsonBody = JSONObject().apply {
-                    put("text", userText)
-                    put("raw", rawPayloadHex.ifBlank { nfcContent })
-                    put("uid", uid)
-                    put("timestamp", startTime)
-                    if (!jwtToken.isNullOrBlank()) {
-                        put("jwt", jwtToken)
-                    }
-                    if (libraryData != null && !libraryData.isTagEmpty) {
-                        put("itemId", libraryData.itemId)
-                        if (libraryData.afi.isNotBlank()) {
-                            put("afi", libraryData.afi)
-                        }
-                        put("country", libraryData.country)
-                        put("isil", libraryData.isil)
-                        put("parts", libraryData.parts)
-                        put("partNo", libraryData.partNo)
-                        put("usageType", libraryData.usageType)
-                        put("version", libraryData.version)
-                        put("isCrcValid", libraryData.isCrcValid)
-                    }
-                }.toString()
-
-                val mediaType = "application/json; charset=utf-8".toMediaType()
-                val requestBody = jsonBody.toRequestBody(mediaType)
-                requestBuilder.post(requestBody)
-            } else {
-                requestBuilder.get()
-            }
-
-            requestBuilder.header("User-Agent", "Iso15693NfcReader/1.0 (Android)")
-            requestBuilder.header("Accept", "application/json, text/plain, */*")
-
-            if (!jwtToken.isNullOrBlank()) {
-                val authHeader = if (jwtToken.startsWith("Bearer ", ignoreCase = true)) {
-                    jwtToken
-                } else {
-                    "Bearer $jwtToken"
-                }
-                requestBuilder.header("Authorization", authHeader)
-            }
-
-            val response = client.newCall(requestBuilder.build()).execute()
+            val response = client.newCall(prepared.request).execute()
             val durationMs = System.currentTimeMillis() - startTime
             val responseBody = response.body?.string() ?: ""
 
@@ -119,8 +200,12 @@ class UrlDispatcher(
                     ScanResponse(
                         httpStatus = response.code,
                         responseBody = responseBody,
-                        requestUrl = fullUrl,
-                        durationMs = durationMs
+                        requestUrl = prepared.fullUrl,
+                        durationMs = durationMs,
+                        jwtKey = jwtKey,
+                        requestHeaders = prepared.headers,
+                        requestBody = prepared.body,
+                        httpRequestDebug = prepared.debugString
                     )
                 )
             } else {
@@ -130,6 +215,29 @@ class UrlDispatcher(
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    companion object {
+        fun formatHttpRequestDebug(
+            method: String,
+            url: String,
+            headers: Map<String, String>,
+            body: String?
+        ): String {
+            val sb = StringBuilder()
+            sb.append("URL: ").append(url).append("\n")
+            sb.append("Method: ").append(method).append("\n")
+            sb.append("Header:\n")
+            if (headers.isEmpty()) {
+                sb.append("  (keine)\n")
+            } else {
+                for ((name, value) in headers) {
+                    sb.append("  ").append(name).append(": ").append(value).append("\n")
+                }
+            }
+            sb.append("Body: ").append(if (!body.isNullOrBlank()) body else "(kein Body)")
+            return sb.toString()
         }
     }
 }

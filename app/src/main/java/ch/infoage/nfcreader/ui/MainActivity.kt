@@ -16,12 +16,16 @@
 
 package ch.infoage.nfcreader.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -123,6 +127,12 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 launch {
+                    viewModel.debugMode.collectLatest { isDebug ->
+                        historyAdapter.setDebugMode(isDebug)
+                    }
+                }
+
+                launch {
                     viewModel.lastScan.collectLatest { lastScan ->
                         if (lastScan != null) {
                             binding.tvLastScanTime.text = timeFormat.format(Date(lastScan.timestamp))
@@ -148,26 +158,44 @@ class MainActivity : AppCompatActivity() {
                                     append(" | Version: ").append(lib.version)
                                     append(" | CRC: ").append(if (lib.isCrcValid) "OK" else "Fehler (${lib.crcHex})").append("\n")
                                 }
-                                append("Text: \"").append(lastScan.userText).append("\"\n")
-                                append("NFC: ").append(lastScan.content)
+                                append("Standort: \"").append(lastScan.location).append("\"")
                             }
 
                             binding.tvLastScanUrlCall.visibility = View.VISIBLE
+                            val baseCallText = if (lastScan.isSuccess) {
+                                "Aufruf erfolgreich (HTTP ${lastScan.httpStatus ?: 200}):\n${lastScan.requestUrl}"
+                            } else {
+                                "Aufruf fehlgeschlagen (${lastScan.errorMessage}):\n${lastScan.requestUrl}"
+                            }
+
+                            binding.tvLastScanUrlCall.text = baseCallText
                             if (lastScan.isSuccess) {
-                                binding.tvLastScanUrlCall.text = "Aufruf erfolgreich (HTTP ${lastScan.httpStatus ?: 200}):\n${lastScan.requestUrl}"
                                 binding.tvLastScanUrlCall.setTextColor(
                                     ContextCompat.getColor(this@MainActivity, R.color.status_success)
                                 )
                             } else {
-                                binding.tvLastScanUrlCall.text = "Aufruf fehlgeschlagen (${lastScan.errorMessage}):\n${lastScan.requestUrl}"
                                 binding.tvLastScanUrlCall.setTextColor(
                                     ContextCompat.getColor(this@MainActivity, R.color.status_error)
                                 )
+                            }
+
+                            if (viewModel.debugMode.value && !lastScan.httpRequestDebug.isNullOrBlank()) {
+                                binding.layoutLastScanDebug.visibility = View.VISIBLE
+                                binding.tvLastScanDebugRequest.text = lastScan.httpRequestDebug
+                                binding.btnCopyLastScanDebug.setOnClickListener {
+                                    copyToClipboard(
+                                        text = lastScan.httpRequestDebug,
+                                        message = getString(R.string.debug_copied_to_clipboard)
+                                    )
+                                }
+                            } else {
+                                binding.layoutLastScanDebug.visibility = View.GONE
                             }
                         } else {
                             binding.tvLastScanTime.text = ""
                             binding.tvLastScanDetails.setText(R.string.no_scans_yet)
                             binding.tvLastScanUrlCall.visibility = View.GONE
+                            binding.layoutLastScanDebug.visibility = View.GONE
                         }
                     }
                 }
@@ -181,6 +209,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.setTargetUrl(appSettings.targetUrl)
         viewModel.setHttpMethod(appSettings.httpMethod)
         viewModel.setJwtKey(appSettings.jwtKey)
+        viewModel.setDebugMode(appSettings.debugMode)
 
         updateNfcStatus()
         if (viewModel.isScanningActive.value) {
@@ -235,6 +264,15 @@ class MainActivity : AppCompatActivity() {
                 binding.tvNfcStatus.text = getString(R.string.nfc_status_unsupported)
                 binding.switchContinuousScan.isEnabled = false
             }
+        }
+    }
+
+    private fun copyToClipboard(text: String, message: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        if (clipboard != null) {
+            val clip = ClipData.newPlainText("HTTP-Request Debug", text)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 }

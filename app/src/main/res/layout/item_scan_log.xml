@@ -53,7 +53,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Eingegebener Text: Hallo Welt"
+            android:text="Standort: Hallo Welt"
             android:textColor="@color/text_primary"
             android:textSize="12sp" />
 
@@ -66,14 +66,56 @@
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/tvLogUrl"
+        <LinearLayout
+            android:id="@+id/layoutLogDebugContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="URL: https://example.com/api?text=Hallo&amp;nfc=00010203"
-            android:textColor="@color/accent"
-            android:textSize="11sp" />
+            android:orientation="vertical"
+            android:layout_marginTop="4dp"
+            android:background="#15000000"
+            android:padding="6dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvLogDebugTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="[HTTP-Request Debug]"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCopyLogDebug"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingLeft="8dp"
+                    android:paddingRight="8dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:text="@string/btn_copy_debug"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvLogDebugRequest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp"
+                android:fontFamily="monospace" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

@@ -25,9 +25,13 @@ data class NfcScanResult(
     val tagType: String = "ISO 15693 (NfcV)",
     val content: String,
     val rawPayloadHex: String = "",
-    val userText: String,
+    val location: String,
     val requestUrl: String,
     val httpMethod: String = "GET",
+    val jwtKey: String? = null,
+    val requestHeaders: Map<String, String> = emptyMap(),
+    val requestBody: String? = null,
+    val httpRequestDebug: String? = null,
     val httpStatus: Int? = null,
     val responseBody: String? = null,
     val errorMessage: String? = null,
@@ -40,5 +44,9 @@ data class ScanResponse(
     val httpStatus: Int,
     val responseBody: String,
     val requestUrl: String,
-    val durationMs: Long
+    val durationMs: Long,
+    val jwtKey: String? = null,
+    val requestHeaders: Map<String, String> = emptyMap(),
+    val requestBody: String? = null,
+    val httpRequestDebug: String = ""
 )

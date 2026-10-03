@@ -43,6 +43,10 @@ class AppSettings(context: Context) {
         get() = securePrefs.getString(KEY_JWT_KEY, "") ?: ""
         set(value) = securePrefs.edit().putString(KEY_JWT_KEY, value.trim()).apply()
 
+    var debugMode: Boolean
+        get() = prefs.getBoolean(KEY_DEBUG_MODE, false)
+        set(value) = prefs.edit().putBoolean(KEY_DEBUG_MODE, value).apply()
+
     private fun migratePreferences() {
         try {
             // 1. If jwtKey was previously stored in standard prefs, migrate to securePrefs and remove from standard prefs
@@ -82,6 +86,7 @@ class AppSettings(context: Context) {
         private const val KEY_TARGET_URL = "target_url"
         private const val KEY_HTTP_METHOD = "http_method"
         private const val KEY_JWT_KEY = "jwt_key"
+        private const val KEY_DEBUG_MODE = "debug_mode"
 
         const val DEFAULT_TARGET_URL = "https://httpbin.org/get"
         const val DEFAULT_HTTP_METHOD = "GET"

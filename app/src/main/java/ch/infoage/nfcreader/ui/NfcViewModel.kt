@@ -17,6 +17,7 @@
 package ch.infoage.nfcreader.ui
 
 import android.nfc.Tag
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.infoage.nfcreader.data.model.NfcScanResult
@@ -45,6 +46,9 @@ class NfcViewModel(
     private val _jwtKey = MutableStateFlow("")
     val jwtKey: StateFlow<String> = _jwtKey.asStateFlow()
 
+    private val _debugMode = MutableStateFlow(false)
+    val debugMode: StateFlow<Boolean> = _debugMode.asStateFlow()
+
     private val _isScanningActive = MutableStateFlow(true)
     val isScanningActive: StateFlow<Boolean> = _isScanningActive.asStateFlow()
 
@@ -72,6 +76,10 @@ class NfcViewModel(
 
     fun setJwtKey(key: String) {
         _jwtKey.value = key
+    }
+
+    fun setDebugMode(debug: Boolean) {
+        _debugMode.value = debug
     }
 
     fun setScanningActive(active: Boolean) {
@@ -160,25 +168,55 @@ class NfcViewModel(
                 null
             }
 
+            val preparedRequest = try {
+                urlDispatcher.prepareRequest(
+                    targetUrlTemplate = currentUrl,
+                    marker = currentText,
+                    nfcContent = content,
+                    rawPayloadHex = rawPayloadHex,
+                    uid = uid,
+                    httpMethod = currentMethod,
+                    jwtToken = jwtToken,
+                    jwtKey = currentKey,
+                    libraryData = libraryData,
+                    timestamp = now
+                )
+            } catch (e: Exception) {
+                null
+            }
+
             val pendingScan = NfcScanResult(
                 uid = uid,
                 tagType = tagType,
                 content = content,
                 rawPayloadHex = rawPayloadHex,
-                userText = currentText,
-                requestUrl = currentUrl,
+                location = currentText,
+                requestUrl = preparedRequest?.fullUrl ?: currentUrl,
                 httpMethod = currentMethod,
+                jwtKey = currentKey.takeIf { it.isNotBlank() },
+                requestHeaders = preparedRequest?.headers ?: emptyMap(),
+                requestBody = preparedRequest?.body,
+                httpRequestDebug = preparedRequest?.debugString,
                 libraryData = libraryData
             )
 
+            if (_debugMode.value && preparedRequest != null) {
+                try {
+                    Log.d("NfcHttpDebug", "=== HTTP REQUEST (DEBUG) ===\n${preparedRequest.debugString}")
+                } catch (e: Throwable) {
+                    println("=== HTTP REQUEST (DEBUG) ===\n${preparedRequest.debugString}")
+                }
+            }
+
             val result = urlDispatcher.dispatchScan(
                 targetUrlTemplate = currentUrl,
-                userText = currentText,
+                marker = currentText,
                 nfcContent = content,
                 rawPayloadHex = rawPayloadHex,
                 uid = uid,
                 httpMethod = currentMethod,
                 jwtToken = jwtToken,
+                jwtKey = currentKey,
                 libraryData = libraryData
             )
 
@@ -189,7 +227,10 @@ class NfcViewModel(
                     httpStatus = response.httpStatus,
                     responseBody = response.responseBody,
                     isSuccess = true,
-                    durationMs = response.durationMs
+                    durationMs = response.durationMs,
+                    requestHeaders = response.requestHeaders.ifEmpty { pendingScan.requestHeaders },
+                    requestBody = response.requestBody ?: pendingScan.requestBody,
+                    httpRequestDebug = response.httpRequestDebug.ifBlank { pendingScan.httpRequestDebug }
                 )
             } else {
                 val error = result.exceptionOrNull()
