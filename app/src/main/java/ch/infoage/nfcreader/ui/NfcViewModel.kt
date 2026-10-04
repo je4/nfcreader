@@ -23,17 +23,44 @@ import androidx.lifecycle.viewModelScope
 import ch.infoage.nfcreader.data.model.NfcScanResult
 import ch.infoage.nfcreader.data.network.JwtGenerator
 import ch.infoage.nfcreader.data.network.UrlDispatcher
+import ch.infoage.nfcreader.nfc.FinnishDataModelParser
 import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.Iso15693Parser
+import ch.infoage.nfcreader.nfc.Iso15693Writer
+import ch.infoage.nfcreader.nfc.ParsedNfcTag
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class AppTab {
+    SCAN,
+    EDIT
+}
+
+enum class EditAction {
+    NONE,
+    READ,
+    WRITE,
+    TOGGLE_AFI
+}
+
+enum class EditStatusType {
+    NEUTRAL,
+    SUCCESS,
+    ERROR,
+    PENDING
+}
+
 class NfcViewModel(
     private val urlDispatcher: UrlDispatcher = UrlDispatcher()
 ) : ViewModel() {
 
+    // Tab Navigation
+    private val _currentTab = MutableStateFlow(AppTab.SCAN)
+    val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
+
+    // Scan Mode State
     private val _userText = MutableStateFlow("")
     val userText: StateFlow<String> = _userText.asStateFlow()
 
@@ -58,9 +85,46 @@ class NfcViewModel(
     private val _scanHistory = MutableStateFlow<List<NfcScanResult>>(emptyList())
     val scanHistory: StateFlow<List<NfcScanResult>> = _scanHistory.asStateFlow()
 
-    // Keep track of the last processed content and time to prevent duplicate rapid fires if needed
+    // Edit Mode State
+    private val _editLibraryData = MutableStateFlow<FinnishLibraryData?>(null)
+    val editLibraryData: StateFlow<FinnishLibraryData?> = _editLibraryData.asStateFlow()
+
+    private val _editUid = MutableStateFlow("")
+    val editUid: StateFlow<String> = _editUid.asStateFlow()
+
+    private val _editTagType = MutableStateFlow("")
+    val editTagType: StateFlow<String> = _editTagType.asStateFlow()
+
+    private val _editRawPayloadHex = MutableStateFlow("")
+    val editRawPayloadHex: StateFlow<String> = _editRawPayloadHex.asStateFlow()
+
+    private val _editHexDump = MutableStateFlow("")
+    val editHexDump: StateFlow<String> = _editHexDump.asStateFlow()
+
+    private val _editAfi = MutableStateFlow("")
+    val editAfi: StateFlow<String> = _editAfi.asStateFlow()
+
+    private val _editStatus = MutableStateFlow("Bereit. Wählen Sie eine Aktion oder halten Sie ein ISO 15693 Tag an.")
+    val editStatus: StateFlow<String> = _editStatus.asStateFlow()
+
+    private val _editStatusType = MutableStateFlow(EditStatusType.NEUTRAL)
+    val editStatusType: StateFlow<EditStatusType> = _editStatusType.asStateFlow()
+
+    private val _pendingEditAction = MutableStateFlow(EditAction.NONE)
+    val pendingEditAction: StateFlow<EditAction> = _pendingEditAction.asStateFlow()
+
+    private var pendingWriteData: FinnishLibraryData? = null
+
+    // Keep track of the last processed content and time to prevent duplicate rapid fires in scan mode
     private var lastScannedUid: String? = null
     private var lastScannedTime: Long = 0
+
+    fun setTab(tab: AppTab) {
+        _currentTab.value = tab
+        if (tab == AppTab.EDIT) {
+            _isScanningActive.value = false
+        }
+    }
 
     fun setUserText(text: String) {
         _userText.value = text
@@ -86,7 +150,7 @@ class NfcViewModel(
     }
 
     fun setScanningActive(active: Boolean) {
-        if (active && _userText.value.isEmpty()) {
+        if (active && (_userText.value.isEmpty() || _currentTab.value == AppTab.EDIT)) {
             _isScanningActive.value = false
             return
         }
@@ -98,19 +162,215 @@ class NfcViewModel(
         _lastScan.value = null
     }
 
+    fun onEditReadClicked() {
+        _pendingEditAction.value = EditAction.READ
+        _editStatus.value = "Halten Sie ein ISO 15693 Tag an die Rückseite zum Lesen..."
+        _editStatusType.value = EditStatusType.PENDING
+    }
+
+    fun onEditWriteClicked(data: FinnishLibraryData) {
+        pendingWriteData = data
+        _pendingEditAction.value = EditAction.WRITE
+        _editStatus.value = "Halten Sie ein ISO 15693 Tag an die Rückseite zum Schreiben..."
+        _editStatusType.value = EditStatusType.PENDING
+    }
+
+    fun onEditToggleAfiClicked() {
+        _pendingEditAction.value = EditAction.TOGGLE_AFI
+        val currentAfi = _editAfi.value.trim().uppercase()
+        val targetAfi = if (currentAfi == "C7") "07" else "C7"
+        _editStatus.value = "Halten Sie ein Tag an zum Umschalten von AFI ($currentAfi -> $targetAfi)..."
+        _editStatusType.value = EditStatusType.PENDING
+    }
+
+    fun updateEditLibraryData(data: FinnishLibraryData) {
+        _editLibraryData.value = data
+        _editAfi.value = data.afi
+    }
+
     fun handleTagDiscovered(tag: Tag) {
-        if (!_isScanningActive.value || _userText.value.isEmpty()) return
+        if (_currentTab.value == AppTab.SCAN) {
+            if (!_isScanningActive.value || _userText.value.isEmpty()) return
 
-        val parsed = Iso15693Parser.parseTag(tag)
-        val content = parsed.textContent ?: parsed.rawPayloadHex
+            val parsed = Iso15693Parser.parseTag(tag)
+            val content = parsed.textContent ?: parsed.rawPayloadHex
 
-        processScan(
+            processScan(
+                uid = parsed.uid,
+                tagType = parsed.tagType,
+                content = content,
+                rawPayloadHex = parsed.rawPayloadHex,
+                libraryData = parsed.libraryData
+            )
+        } else {
+            handleEditTagDiscovered(tag)
+        }
+    }
+
+    fun handleEditTagDiscovered(tag: Tag) {
+        if (!Iso15693Writer.isIso15693(tag)) {
+            _editStatus.value = "Nur ISO 15693 (NfcV) Tags werden im Edit-Modus unterstützt."
+            _editStatusType.value = EditStatusType.ERROR
+            _pendingEditAction.value = EditAction.NONE
+            return
+        }
+
+        when (_pendingEditAction.value) {
+            EditAction.WRITE -> {
+                val toWrite = pendingWriteData
+                if (toWrite == null) {
+                    _editStatus.value = "Keine Daten zum Schreiben vorhanden."
+                    _editStatusType.value = EditStatusType.ERROR
+                    _pendingEditAction.value = EditAction.NONE
+                    return
+                }
+
+                val writeResult = Iso15693Writer.writeFinnishData(tag, toWrite)
+                if (writeResult.isSuccess) {
+                    val parsed = writeResult.getOrThrow()
+                    applyParsedEditTag(parsed)
+                    _editStatus.value = "Tag erfolgreich geschrieben!"
+                    _editStatusType.value = EditStatusType.SUCCESS
+                } else {
+                    _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                    _editStatusType.value = EditStatusType.ERROR
+                }
+                _pendingEditAction.value = EditAction.NONE
+                pendingWriteData = null
+            }
+            EditAction.TOGGLE_AFI -> {
+                val currentAfi = _editAfi.value.trim().uppercase()
+                val targetAfi = if (currentAfi == "C7") "07" else "C7"
+
+                val afiResult = Iso15693Writer.writeAfi(tag, targetAfi)
+                if (afiResult.isSuccess) {
+                    val newAfi = afiResult.getOrThrow()
+                    _editAfi.value = newAfi
+                    _editLibraryData.value = _editLibraryData.value?.copy(afi = newAfi)
+                    _editStatus.value = "AFI Status erfolgreich auf $newAfi gesetzt!"
+                    _editStatusType.value = EditStatusType.SUCCESS
+                } else {
+                    _editStatus.value = "Fehler beim Setzen von AFI: ${afiResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                    _editStatusType.value = EditStatusType.ERROR
+                }
+                _pendingEditAction.value = EditAction.NONE
+            }
+            EditAction.READ, EditAction.NONE -> {
+                val readResult = Iso15693Writer.readTag(tag)
+                if (readResult.isSuccess) {
+                    val parsed = readResult.getOrThrow()
+                    applyParsedEditTag(parsed)
+                    _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
+                    _editStatusType.value = EditStatusType.SUCCESS
+                } else {
+                    _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                    _editStatusType.value = EditStatusType.ERROR
+                }
+                _pendingEditAction.value = EditAction.NONE
+            }
+        }
+    }
+
+    private fun applyParsedEditTag(parsed: ParsedNfcTag) {
+        _editUid.value = parsed.uid
+        _editTagType.value = parsed.tagType
+        _editRawPayloadHex.value = parsed.rawPayloadHex
+        _editAfi.value = parsed.afi ?: parsed.libraryData?.afi ?: ""
+        val rawBytes = try {
+            if (parsed.rawPayloadHex.isNotBlank()) {
+                val len = parsed.rawPayloadHex.length
+                val data = ByteArray(len / 2)
+                for (i in 0 until len step 2) {
+                    data[i / 2] = ((Character.digit(parsed.rawPayloadHex[i], 16) shl 4) +
+                            Character.digit(parsed.rawPayloadHex[i + 1], 16)).toByte()
+                }
+                data
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+        _editHexDump.value = Iso15693Writer.formatHexDump(rawBytes)
+        _editLibraryData.value = parsed.libraryData ?: FinnishLibraryData(
             uid = parsed.uid,
-            tagType = parsed.tagType,
-            content = content,
-            rawPayloadHex = parsed.rawPayloadHex,
-            libraryData = parsed.libraryData
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "",
+            country = "",
+            isil = "",
+            isCrcValid = false,
+            isTagEmpty = true,
+            afi = parsed.afi ?: ""
         )
+    }
+
+    fun triggerTestEditScan(mockData: FinnishLibraryData? = null) {
+        val randomSuffix = (1000..9999).random()
+        val mockUid = mockData?.uid?.takeIf { it.isNotBlank() } ?: "E0040150${randomSuffix}ABCD"
+        val testData = mockData ?: FinnishLibraryData(
+            uid = mockUid,
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "3011$randomSuffix",
+            country = "CH",
+            isil = "ISIL-123",
+            isCrcValid = true,
+            isTagEmpty = false,
+            crcHex = "A1B2",
+            afi = "C7"
+        )
+        val encoded = FinnishDataModelParser.encode(testData)
+        val hex = Iso15693Parser.bytesToHex(encoded)
+        val parsed = ParsedNfcTag(
+            uid = mockUid,
+            tagType = "ISO 15693 (NfcV - Test)",
+            rawPayloadHex = hex,
+            textContent = testData.toFormattedString(),
+            fullSummary = testData.toFormattedString(),
+            libraryData = testData,
+            afi = testData.afi
+        )
+        applyParsedEditTag(parsed)
+        _editStatus.value = "Test-Tag erfolgreich geladen (UID: $mockUid)"
+        _editStatusType.value = EditStatusType.SUCCESS
+        _pendingEditAction.value = EditAction.NONE
+    }
+
+    fun triggerTestEditWrite(data: FinnishLibraryData) {
+        val encoded = FinnishDataModelParser.encode(data)
+        val hex = Iso15693Parser.bytesToHex(encoded)
+        val parsed = FinnishDataModelParser.parse(data.uid.ifBlank { "E00401509999ABCD" }, encoded, afi = data.afi)
+        val finalData = parsed ?: data
+        val parsedTag = ParsedNfcTag(
+            uid = finalData.uid,
+            tagType = "ISO 15693 (NfcV - Test)",
+            rawPayloadHex = hex,
+            textContent = finalData.toFormattedString(),
+            fullSummary = finalData.toFormattedString(),
+            libraryData = finalData,
+            afi = finalData.afi
+        )
+        applyParsedEditTag(parsedTag)
+        _editStatus.value = "Test-Tag erfolgreich geschrieben!"
+        _editStatusType.value = EditStatusType.SUCCESS
+        _pendingEditAction.value = EditAction.NONE
+        pendingWriteData = null
+    }
+
+    fun triggerTestEditToggleAfi() {
+        val currentAfi = _editAfi.value.trim().uppercase()
+        val targetAfi = if (currentAfi == "C7") "07" else "C7"
+        _editAfi.value = targetAfi
+        val currentData = _editLibraryData.value
+        if (currentData != null) {
+            _editLibraryData.value = currentData.copy(afi = targetAfi)
+        }
+        _editStatus.value = "AFI Status erfolgreich auf $targetAfi gesetzt!"
+        _editStatusType.value = EditStatusType.SUCCESS
+        _pendingEditAction.value = EditAction.NONE
     }
 
     fun triggerTestScan(mockContent: String? = null) {
@@ -133,7 +393,7 @@ class NfcViewModel(
             afi = "C7"
         )
         val content = mockContent ?: mockLibraryData.toFormattedString()
-        val rawPayloadHex = ch.infoage.nfcreader.nfc.FinnishDataModelParser.encode(mockLibraryData).let {
+        val rawPayloadHex = FinnishDataModelParser.encode(mockLibraryData).let {
             Iso15693Parser.bytesToHex(it)
         }
 

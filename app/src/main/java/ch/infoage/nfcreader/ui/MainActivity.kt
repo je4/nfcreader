@@ -37,6 +37,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import ch.infoage.nfcreader.R
 import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.databinding.ActivityMainBinding
+import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.NfcReaderManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -85,45 +86,96 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Setup RecyclerView
+        // Bottom Navigation Tab Switcher
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_scan -> {
+                    viewModel.setTab(AppTab.SCAN)
+                    true
+                }
+                R.id.nav_edit -> {
+                    viewModel.setTab(AppTab.EDIT)
+                    true
+                }
+                else -> false
+            }
+        }
+
+        // Setup Scan Mode Views
         binding.rvScanHistory.layoutManager = LinearLayoutManager(this)
         binding.rvScanHistory.adapter = historyAdapter
 
-        // User text input binding
         binding.etUserText.doAfterTextChanged { editable ->
             viewModel.setUserText(editable?.toString().orEmpty())
         }
 
-        // Continuous scan toggle
         binding.switchContinuousScan.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked && viewModel.userText.value.isEmpty()) {
                 binding.switchContinuousScan.isChecked = false
                 return@setOnCheckedChangeListener
             }
             viewModel.setScanningActive(isChecked)
-            if (isChecked) {
-                nfcManager.startContinuousScanning()
-                binding.tvNfcStatus.text = getString(R.string.nfc_status_scanning)
-            } else {
-                nfcManager.stopContinuousScanning()
-                updateNfcStatus()
-            }
+            updateNfcStatus()
+            updateNfcReaderMode()
         }
 
-        // Manual test scan trigger
         binding.btnTestScan.setOnClickListener {
             viewModel.triggerTestScan()
         }
 
-        // Clear history
         binding.tvClearHistory.setOnClickListener {
             viewModel.clearHistory()
         }
+
+        // Setup Edit Mode Views
+        binding.btnEditRead.setOnClickListener {
+            viewModel.onEditReadClicked()
+        }
+
+        binding.btnEditWrite.setOnClickListener {
+            val toWrite = createLibraryDataFromEditInputs()
+            viewModel.onEditWriteClicked(toWrite)
+        }
+
+        binding.btnEditToggleAfi.setOnClickListener {
+            viewModel.onEditToggleAfiClicked()
+        }
+
+        binding.btnEditTestScan.setOnClickListener {
+            viewModel.triggerTestEditScan()
+        }
+    }
+
+    private fun createLibraryDataFromEditInputs(): FinnishLibraryData {
+        val itemId = binding.etEditItemId.text?.toString().orEmpty().trim()
+        val country = binding.etEditCountry.text?.toString().orEmpty().trim().uppercase()
+        val isil = binding.etEditIsil.text?.toString().orEmpty().trim()
+        val partNo = binding.etEditPartNo.text?.toString()?.toIntOrNull() ?: 1
+        val parts = binding.etEditParts.text?.toString()?.toIntOrNull() ?: 1
+        val usageType = binding.etEditUsageType.text?.toString()?.toIntOrNull() ?: 1
+        val version = binding.etEditVersion.text?.toString()?.toIntOrNull() ?: 1
+        val afi = binding.etEditAfi.text?.toString().orEmpty().trim().uppercase()
+        val uid = binding.tvEditUid.text?.toString().orEmpty().takeIf { it != "-" }.orEmpty()
+
+        return FinnishLibraryData(
+            uid = uid,
+            version = version,
+            usageType = usageType,
+            parts = parts,
+            partNo = partNo,
+            itemId = itemId,
+            country = country,
+            isil = isil,
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = afi
+        )
     }
 
     private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // Observe User Text
                 launch {
                     viewModel.userText.collectLatest { text ->
                         val hasLocation = text.isNotEmpty()
@@ -134,6 +186,31 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                // Observe Scanning Active
+                launch {
+                    viewModel.isScanningActive.collectLatest { isActive ->
+                        if (binding.switchContinuousScan.isChecked != isActive) {
+                            binding.switchContinuousScan.isChecked = isActive
+                        }
+                        updateNfcStatus()
+                        updateNfcReaderMode()
+                    }
+                }
+
+                // Observe Tab Selection
+                launch {
+                    viewModel.currentTab.collectLatest { tab ->
+                        val itemId = if (tab == AppTab.SCAN) R.id.nav_scan else R.id.nav_edit
+                        if (binding.bottomNavigation.selectedItemId != itemId) {
+                            binding.bottomNavigation.selectedItemId = itemId
+                        }
+                        binding.layoutScan.visibility = if (tab == AppTab.SCAN) View.VISIBLE else View.GONE
+                        binding.layoutEdit.visibility = if (tab == AppTab.EDIT) View.VISIBLE else View.GONE
+                        updateNfcReaderMode()
+                    }
+                }
+
+                // Observe Scan History
                 launch {
                     viewModel.scanHistory.collectLatest { history ->
                         historyAdapter.submitList(history)
@@ -146,6 +223,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                // Observe Last Scan in Scan Mode
                 launch {
                     viewModel.lastScan.collectLatest { lastScan ->
                         if (lastScan != null) {
@@ -163,8 +241,8 @@ class MainActivity : AppCompatActivity() {
                                     append(" | Typ: ").append(lib.usageType)
                                     if (lib.afi.isNotBlank()) {
                                         val statusDesc = when (lib.afi.uppercase()) {
-                                            "07" -> "07 (Ausgeliehen)"
-                                            "C7" -> "C7 (Gesichert)"
+                                            "07" -> getString(R.string.edit_afi_loaned)
+                                            "C7" -> getString(R.string.edit_afi_secured)
                                             else -> lib.afi
                                         }
                                         append(" | Status: ").append(statusDesc)
@@ -213,6 +291,89 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+
+                // Observe Edit Mode States
+                launch {
+                    viewModel.editUid.collectLatest { uid ->
+                        binding.tvEditUid.text = uid.ifBlank { "-" }
+                    }
+                }
+
+                launch {
+                    viewModel.editTagType.collectLatest { tagType ->
+                        binding.tvEditTagType.text = tagType.ifBlank { "-" }
+                    }
+                }
+
+                launch {
+                    viewModel.editAfi.collectLatest { afi ->
+                        val afiDesc = when (afi.uppercase()) {
+                            "07" -> getString(R.string.edit_afi_loaned)
+                            "C7" -> getString(R.string.edit_afi_secured)
+                            else -> if (afi.isNotBlank()) afi else "-"
+                        }
+                        binding.tvEditAfiStatus.text = afiDesc
+                    }
+                }
+
+                launch {
+                    viewModel.editHexDump.collectLatest { hexDump ->
+                        binding.tvEditHexDump.text = hexDump.ifBlank { "Keine Rohdaten verfügbar." }
+                    }
+                }
+
+                launch {
+                    viewModel.editStatus.collectLatest { status ->
+                        binding.tvEditStatus.text = status
+                    }
+                }
+
+                launch {
+                    viewModel.editStatusType.collectLatest { type ->
+                        val colorRes = when (type) {
+                            EditStatusType.SUCCESS -> R.color.status_success
+                            EditStatusType.ERROR -> R.color.status_error
+                            EditStatusType.PENDING -> R.color.status_pending
+                            EditStatusType.NEUTRAL -> R.color.text_primary
+                        }
+                        binding.tvEditStatus.setTextColor(
+                            ContextCompat.getColor(this@MainActivity, colorRes)
+                        )
+                    }
+                }
+
+                launch {
+                    viewModel.editLibraryData.collectLatest { libData ->
+                        if (libData != null) {
+                            binding.etEditItemId.setText(libData.itemId)
+                            binding.etEditCountry.setText(libData.country)
+                            binding.etEditIsil.setText(libData.isil)
+                            binding.etEditPartNo.setText(libData.partNo.toString())
+                            binding.etEditParts.setText(libData.parts.toString())
+                            binding.etEditUsageType.setText(libData.usageType.toString())
+                            binding.etEditVersion.setText(libData.version.toString())
+                            binding.etEditAfi.setText(libData.afi)
+
+                            val crcText = if (libData.isCrcValid) {
+                                getString(R.string.edit_crc_valid)
+                            } else {
+                                getString(R.string.edit_crc_invalid)
+                            }
+                            binding.tvEditCrcStatus.text = crcText
+                            binding.tvEditCrcStatus.setTextColor(
+                                ContextCompat.getColor(
+                                    this@MainActivity,
+                                    if (libData.isCrcValid) R.color.status_success else R.color.status_error
+                                )
+                            )
+                        } else {
+                            binding.tvEditCrcStatus.text = "-"
+                            binding.tvEditCrcStatus.setTextColor(
+                                ContextCompat.getColor(this@MainActivity, R.color.text_primary)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -226,9 +387,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.setDebugMode(appSettings.debugMode)
 
         updateNfcStatus()
-        if (viewModel.isScanningActive.value && viewModel.userText.value.isNotEmpty()) {
-            nfcManager.startContinuousScanning()
-        }
+        updateNfcReaderMode()
     }
 
     override fun onPause() {
@@ -257,6 +416,19 @@ class MainActivity : AppCompatActivity() {
             if (tag != null) {
                 viewModel.handleTagDiscovered(tag)
             }
+        }
+    }
+
+    private fun updateNfcReaderMode() {
+        if (viewModel.currentTab.value == AppTab.SCAN) {
+            if (viewModel.isScanningActive.value && viewModel.userText.value.isNotEmpty()) {
+                nfcManager.startContinuousScanning()
+            } else {
+                nfcManager.stopContinuousScanning()
+            }
+        } else {
+            // In Edit Mode, enable reader mode so discovered tags are captured immediately
+            nfcManager.startContinuousScanning()
         }
     }
 

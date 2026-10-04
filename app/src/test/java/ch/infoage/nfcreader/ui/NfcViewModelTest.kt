@@ -226,4 +226,159 @@ class NfcViewModelTest {
         assertTrue(lastScan.httpRequestDebug?.contains("Authorization: Bearer eyJ") == true)
         assertTrue(lastScan.httpRequestDebug?.contains("\"marker\":\"DebugUserText\"") == true)
     }
+
+    @Test
+    fun testTabSwitching() {
+        assertEquals(AppTab.SCAN, viewModel.currentTab.value)
+
+        // Activate scan in SCAN tab
+        viewModel.setUserText("Lager 1")
+        viewModel.setScanningActive(true)
+        assertTrue(viewModel.isScanningActive.value)
+
+        // Switching to EDIT tab must stop the active scan
+        viewModel.setTab(AppTab.EDIT)
+        assertEquals(AppTab.EDIT, viewModel.currentTab.value)
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Cannot activate scan while in EDIT tab
+        viewModel.setScanningActive(true)
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Switching back to SCAN tab
+        viewModel.setTab(AppTab.SCAN)
+        assertEquals(AppTab.SCAN, viewModel.currentTab.value)
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Can activate scan again when back in SCAN tab
+        viewModel.setScanningActive(true)
+        assertEquals(true, viewModel.isScanningActive.value)
+    }
+
+    @Test
+    fun testEditActionTriggers() {
+        assertEquals(EditAction.NONE, viewModel.pendingEditAction.value)
+
+        // Read trigger
+        viewModel.onEditReadClicked()
+        assertEquals(EditAction.READ, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+
+        // Write trigger
+        val dummyData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015011223344",
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "ITEM-001",
+            country = "CH",
+            isil = "ISIL-1",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "C7"
+        )
+        viewModel.onEditWriteClicked(dummyData)
+        assertEquals(EditAction.WRITE, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+
+        // Toggle AFI trigger
+        viewModel.onEditToggleAfiClicked()
+        assertEquals(EditAction.TOGGLE_AFI, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+    }
+
+    @Test
+    fun testTriggerTestEditScanPopulatesFields() {
+        val testData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015099887766",
+            version = 1,
+            usageType = 2,
+            parts = 3,
+            partNo = 1,
+            itemId = "30118499",
+            country = "CH",
+            isil = "ISIL-42",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "C7"
+        )
+
+        viewModel.triggerTestEditScan(testData)
+
+        assertEquals("E004015099887766", viewModel.editUid.value)
+        assertEquals("ISO 15693 (NfcV - Test)", viewModel.editTagType.value)
+        assertEquals("C7", viewModel.editAfi.value)
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+        assertTrue(viewModel.editHexDump.value.contains("Block 00:"))
+        assertNotNull(viewModel.editLibraryData.value)
+        assertEquals("30118499", viewModel.editLibraryData.value?.itemId)
+        assertEquals("CH", viewModel.editLibraryData.value?.country)
+        assertEquals("ISIL-42", viewModel.editLibraryData.value?.isil)
+        assertEquals(1, viewModel.editLibraryData.value?.partNo)
+        assertEquals(3, viewModel.editLibraryData.value?.parts)
+        assertEquals(2, viewModel.editLibraryData.value?.usageType)
+        assertTrue(viewModel.editLibraryData.value?.isCrcValid == true)
+    }
+
+    @Test
+    fun testTriggerTestEditWriteUpdatesState() {
+        val newData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015088776655",
+            version = 1,
+            usageType = 1,
+            parts = 2,
+            partNo = 2,
+            itemId = "NEW-BARCODE",
+            country = "DE",
+            isil = "ISIL-99",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "07"
+        )
+
+        viewModel.triggerTestEditWrite(newData)
+
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+        assertEquals("E004015088776655", viewModel.editUid.value)
+        assertEquals("07", viewModel.editAfi.value)
+        assertEquals("NEW-BARCODE", viewModel.editLibraryData.value?.itemId)
+        assertEquals("DE", viewModel.editLibraryData.value?.country)
+        assertEquals("ISIL-99", viewModel.editLibraryData.value?.isil)
+        assertEquals(2, viewModel.editLibraryData.value?.partNo)
+        assertEquals(2, viewModel.editLibraryData.value?.parts)
+        assertTrue(viewModel.editLibraryData.value?.isCrcValid == true)
+    }
+
+    @Test
+    fun testTriggerTestEditToggleAfi() {
+        // Initially set AFI to C7 (Gesichert)
+        val testData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015011112222",
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "TEST",
+            country = "CH",
+            isil = "ISIL-1",
+            isCrcValid = true,
+            isTagEmpty = false,
+            afi = "C7"
+        )
+        viewModel.triggerTestEditScan(testData)
+        assertEquals("C7", viewModel.editAfi.value)
+
+        // Toggle AFI: C7 -> 07 (Ausgeliehen)
+        viewModel.triggerTestEditToggleAfi()
+        assertEquals("07", viewModel.editAfi.value)
+        assertEquals("07", viewModel.editLibraryData.value?.afi)
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+
+        // Toggle AFI again: 07 -> C7 (Gesichert)
+        viewModel.triggerTestEditToggleAfi()
+        assertEquals("C7", viewModel.editAfi.value)
+        assertEquals("C7", viewModel.editLibraryData.value?.afi)
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+    }
 }

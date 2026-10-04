@@ -34,6 +34,47 @@
     <string name="settings_saved_toast">Einstellungen gespeichert</string>
     <string name="action_settings">Einstellungen</string>
 
+    <!-- Navigation -->
+    <string name="nav_scan">Scan</string>
+    <string name="nav_edit">Edit</string>
+
+    <!-- Edit Mode Strings -->
+    <string name="btn_edit_read">NFC lesen</string>
+    <string name="btn_edit_write">NFC schreiben</string>
+    <string name="btn_edit_toggle_afi">AFI umschalten</string>
+    <string name="btn_edit_test">Test-Tag</string>
+    <string name="edit_status_ready">Bereit. Wählen Sie eine Aktion oder halten Sie ein ISO 15693 Tag an.</string>
+    <string name="edit_status_reading">Halten Sie ein ISO 15693 Tag an die Rückseite zum Lesen...</string>
+    <string name="edit_status_writing">Halten Sie ein ISO 15693 Tag an die Rückseite zum Schreiben...</string>
+    <string name="edit_status_toggling_afi">Halten Sie ein ISO 15693 Tag an zum AFI-Umschalten...</string>
+    <string name="edit_status_read_success">Tag erfolgreich gelesen: %1$s</string>
+    <string name="edit_status_write_success">Tag erfolgreich geschrieben!</string>
+    <string name="edit_status_afi_success">AFI Status geändert auf %1$s</string>
+    <string name="edit_status_unsupported_tag">Nur ISO 15693 (NfcV) Tags werden im Edit-Modus unterstützt.</string>
+    <string name="edit_inspector_title">Transponder-Informationen</string>
+    <string name="edit_library_data_title">Bibliotheksdaten (ISO 28560)</string>
+    <string name="edit_raw_hexdump_title">Block-Rohdaten (Hex-Dump)</string>
+    <string name="edit_field_uid">RFID Chip UID</string>
+    <string name="edit_field_tag_type">Transponder-Typ</string>
+    <string name="edit_field_afi_status">AFI Status</string>
+    <string name="edit_field_crc_status">CRC Prüfsumme</string>
+    <string name="edit_field_item_id">Barcode / Primary Item-ID</string>
+    <string name="edit_field_item_id_hint">Item-ID (max. 16 Zeichen)</string>
+    <string name="edit_field_country">Ländercode</string>
+    <string name="edit_field_country_hint">z.B. CH, DE</string>
+    <string name="edit_field_isil">ISIL Kennung</string>
+    <string name="edit_field_isil_hint">z.B. ISIL-123</string>
+    <string name="edit_field_part_no">Teil-Nr.</string>
+    <string name="edit_field_parts">Gesamt</string>
+    <string name="edit_field_usage_type">Nutzungsart (Usage Type)</string>
+    <string name="edit_field_version">Version</string>
+    <string name="edit_field_afi">AFI (Hex)</string>
+    <string name="edit_field_afi_hint">z.B. 07 oder C7</string>
+    <string name="edit_crc_valid">Gültig (OK)</string>
+    <string name="edit_crc_invalid">Fehler / Ungültig</string>
+    <string name="edit_afi_secured">C7 (Gesichert)</string>
+    <string name="edit_afi_loaned">07 (Ausgeliehen)</string>
+
     <!-- About / Copyright -->
     <string name="copyright_notice">© 2026 info-age GmbH, Basel\nLizenziert unter Apache License 2.0</string>
 </resources>
