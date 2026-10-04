@@ -74,8 +74,60 @@ class NfcViewModelTest {
         viewModel.setDebugMode(true)
         assertEquals(true, viewModel.debugMode.value)
 
+        viewModel.setScanningActive(true)
+        assertEquals(true, viewModel.isScanningActive.value)
+
         viewModel.setScanningActive(false)
         assertEquals(false, viewModel.isScanningActive.value)
+    }
+
+    @Test
+    fun testScanningRequiresLocation() {
+        // Initial state: userText is empty, scanning must be inactive
+        assertEquals("", viewModel.userText.value)
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Attempting to activate scan without location must fail
+        viewModel.setScanningActive(true)
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Setting a non-empty location enables scan activation
+        viewModel.setUserText("Lager 1")
+        assertEquals("Lager 1", viewModel.userText.value)
+        viewModel.setScanningActive(true)
+        assertEquals(true, viewModel.isScanningActive.value)
+
+        // Clearing location must automatically deactivate scanning
+        viewModel.setUserText("")
+        assertEquals(false, viewModel.isScanningActive.value)
+
+        // Attempting to re-activate without location remains inactive
+        viewModel.setScanningActive(true)
+        assertEquals(false, viewModel.isScanningActive.value)
+    }
+
+    @Test
+    fun testTriggerTestScanRequiresLocation() = runTest {
+        // With empty location, triggerTestScan must not perform a scan
+        viewModel.setUserText("")
+        viewModel.triggerTestScan()
+        advanceUntilIdle()
+        assertEquals(null, viewModel.lastScan.value)
+        assertTrue(viewModel.scanHistory.value.isEmpty())
+
+        // With location, triggerTestScan performs a scan
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"success\":true}")
+        )
+        viewModel.setTargetUrl(mockWebServer.url("/test").toString())
+        viewModel.setUserText("Raum 101")
+        viewModel.triggerTestScan("Test Payload")
+        advanceUntilIdle()
+        assertNotNull(viewModel.lastScan.value)
+        assertEquals(1, viewModel.scanHistory.value.size)
+        assertEquals("Raum 101", viewModel.lastScan.value?.location)
     }
 
     @Test

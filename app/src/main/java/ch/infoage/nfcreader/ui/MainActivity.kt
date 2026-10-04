@@ -96,13 +96,17 @@ class MainActivity : AppCompatActivity() {
 
         // Continuous scan toggle
         binding.switchContinuousScan.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && viewModel.userText.value.isEmpty()) {
+                binding.switchContinuousScan.isChecked = false
+                return@setOnCheckedChangeListener
+            }
             viewModel.setScanningActive(isChecked)
             if (isChecked) {
                 nfcManager.startContinuousScanning()
                 binding.tvNfcStatus.text = getString(R.string.nfc_status_scanning)
             } else {
                 nfcManager.stopContinuousScanning()
-                binding.tvNfcStatus.text = "Kontinuierlicher Scan pausiert"
+                updateNfcStatus()
             }
         }
 
@@ -120,6 +124,16 @@ class MainActivity : AppCompatActivity() {
     private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.userText.collectLatest { text ->
+                        val hasLocation = text.isNotEmpty()
+                        if (!hasLocation && binding.switchContinuousScan.isChecked) {
+                            binding.switchContinuousScan.isChecked = false
+                        }
+                        updateNfcStatus()
+                    }
+                }
+
                 launch {
                     viewModel.scanHistory.collectLatest { history ->
                         historyAdapter.submitList(history)
@@ -212,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.setDebugMode(appSettings.debugMode)
 
         updateNfcStatus()
-        if (viewModel.isScanningActive.value) {
+        if (viewModel.isScanningActive.value && viewModel.userText.value.isNotEmpty()) {
             nfcManager.startContinuousScanning()
         }
     }
@@ -247,22 +261,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNfcStatus() {
+        val hasLocation = viewModel.userText.value.isNotEmpty()
         when (nfcManager.getAvailability()) {
             NfcReaderManager.NfcAvailability.ENABLED -> {
+                binding.switchContinuousScan.isEnabled = hasLocation
+                binding.btnTestScan.isEnabled = hasLocation
                 binding.tvNfcStatus.text = if (viewModel.isScanningActive.value) {
                     getString(R.string.nfc_status_scanning)
+                } else if (!hasLocation) {
+                    getString(R.string.nfc_status_location_required)
                 } else {
-                    "Kontinuierlicher Scan pausiert"
+                    getString(R.string.nfc_status_paused)
                 }
-                binding.switchContinuousScan.isEnabled = true
             }
             NfcReaderManager.NfcAvailability.DISABLED -> {
                 binding.tvNfcStatus.text = getString(R.string.nfc_status_disabled)
                 binding.switchContinuousScan.isEnabled = false
+                binding.btnTestScan.isEnabled = false
             }
             NfcReaderManager.NfcAvailability.NOT_SUPPORTED -> {
                 binding.tvNfcStatus.text = getString(R.string.nfc_status_unsupported)
                 binding.switchContinuousScan.isEnabled = false
+                binding.btnTestScan.isEnabled = false
             }
         }
     }

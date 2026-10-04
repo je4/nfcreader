@@ -5,6 +5,8 @@
     <string name="target_url_label">Ziel-URL</string>
     <string name="target_url_hint">https://example.com/api?marker={marker}&amp;itemid={itemid}&amp;afi={afi}</string>
     <string name="nfc_status_ready">Bereit für ISO 15693 NFC-Scan</string>
+    <string name="nfc_status_location_required">Standort für Scan erforderlich</string>
+    <string name="nfc_status_paused">Kontinuierlicher Scan pausiert</string>
     <string name="nfc_status_disabled">NFC ist deaktiviert. Bitte in Einstellungen aktivieren.</string>
     <string name="nfc_status_unsupported">Dieses Gerät unterstützt kein NFC.</string>
     <string name="nfc_status_scanning">Kontinuierlicher Scan aktiv...</string>

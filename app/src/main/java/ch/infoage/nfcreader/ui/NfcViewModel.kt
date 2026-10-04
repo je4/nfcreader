@@ -49,7 +49,7 @@ class NfcViewModel(
     private val _debugMode = MutableStateFlow(false)
     val debugMode: StateFlow<Boolean> = _debugMode.asStateFlow()
 
-    private val _isScanningActive = MutableStateFlow(true)
+    private val _isScanningActive = MutableStateFlow(false)
     val isScanningActive: StateFlow<Boolean> = _isScanningActive.asStateFlow()
 
     private val _lastScan = MutableStateFlow<NfcScanResult?>(null)
@@ -64,6 +64,9 @@ class NfcViewModel(
 
     fun setUserText(text: String) {
         _userText.value = text
+        if (text.isEmpty() && _isScanningActive.value) {
+            _isScanningActive.value = false
+        }
     }
 
     fun setTargetUrl(url: String) {
@@ -83,6 +86,10 @@ class NfcViewModel(
     }
 
     fun setScanningActive(active: Boolean) {
+        if (active && _userText.value.isEmpty()) {
+            _isScanningActive.value = false
+            return
+        }
         _isScanningActive.value = active
     }
 
@@ -92,7 +99,7 @@ class NfcViewModel(
     }
 
     fun handleTagDiscovered(tag: Tag) {
-        if (!_isScanningActive.value) return
+        if (!_isScanningActive.value || _userText.value.isEmpty()) return
 
         val parsed = Iso15693Parser.parseTag(tag)
         val content = parsed.textContent ?: parsed.rawPayloadHex
@@ -107,6 +114,8 @@ class NfcViewModel(
     }
 
     fun triggerTestScan(mockContent: String? = null) {
+        if (_userText.value.isEmpty()) return
+
         val randomSuffix = (1000..9999).random()
         val mockUid = "E0040150${randomSuffix}ABCD"
         val mockLibraryData = FinnishLibraryData(
