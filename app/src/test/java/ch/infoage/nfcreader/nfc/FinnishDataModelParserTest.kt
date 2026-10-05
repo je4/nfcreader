@@ -131,10 +131,10 @@ class FinnishDataModelParserTest {
             isil = "123",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
         assertEquals(
-            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: C7 (Gesichert) | Ver: 1 | CRC: OK",
+            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: C2 (Gesichert) | Ver: 1 | CRC: OK",
             dataSecured.toFormattedString()
         )
 

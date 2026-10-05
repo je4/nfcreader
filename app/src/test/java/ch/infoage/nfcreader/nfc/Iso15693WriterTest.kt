@@ -58,7 +58,7 @@ class Iso15693WriterTest {
             isil = "ISIL-123",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
         val encoded = FinnishDataModelParser.encode(original, size = 36)
         val dump = Iso15693Writer.formatHexDump(encoded, blockSize = 4)

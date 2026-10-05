@@ -208,7 +208,7 @@ object Iso15693Parser {
     }
 
     /**
-     * Extrahiert den AFI-Wert (Hex-String, z. B. "07" oder "C7") aus einer ISO 15693 Get System Information Antwort.
+     * Extrahiert den AFI-Wert (Hex-String, z. B. "07" oder "C2") aus einer ISO 15693 Get System Information Antwort.
      */
     fun parseAfiFromSystemInfo(response: ByteArray): String? {
         if (response.size < 10) return null
@@ -259,7 +259,7 @@ object Iso15693Parser {
                 if (libraryData.afi.isNotBlank()) {
                     val statusDesc = when (libraryData.afi.uppercase()) {
                         "07" -> "Ausgeliehen"
-                        "C7" -> "Gesichert"
+                        "C2" -> "Gesichert"
                         else -> libraryData.afi
                     }
                     append(" | AFI: ").append(libraryData.afi.uppercase()).append(" (").append(statusDesc).append(")")

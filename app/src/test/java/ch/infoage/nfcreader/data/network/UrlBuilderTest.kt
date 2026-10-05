@@ -212,7 +212,7 @@ class UrlBuilderTest {
             isil = "ISIL-1",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
 
         val result = UrlBuilder.buildUrl(
@@ -227,7 +227,7 @@ class UrlBuilderTest {
 
         assertTrue(result.contains("marker=Filiale"))
         assertTrue(result.contains("session=Reader2_20261003"))
-        assertTrue(result.contains("afi=C7"))
+        assertTrue(result.contains("afi=C2"))
         assertTrue(result.contains("itemid=3011000123"))
         assertTrue(result.contains("raw=0102030405"))
     }

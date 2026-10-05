@@ -242,7 +242,7 @@ class MainActivity : AppCompatActivity() {
                                     if (lib.afi.isNotBlank()) {
                                         val statusDesc = when (lib.afi.uppercase()) {
                                             "07" -> getString(R.string.edit_afi_loaned)
-                                            "C7" -> getString(R.string.edit_afi_secured)
+                                            "C2" -> getString(R.string.edit_afi_secured)
                                             else -> lib.afi
                                         }
                                         append(" | Status: ").append(statusDesc)
@@ -309,7 +309,7 @@ class MainActivity : AppCompatActivity() {
                     viewModel.editAfi.collectLatest { afi ->
                         val afiDesc = when (afi.uppercase()) {
                             "07" -> getString(R.string.edit_afi_loaned)
-                            "C7" -> getString(R.string.edit_afi_secured)
+                            "C2" -> getString(R.string.edit_afi_secured)
                             else -> if (afi.isNotBlank()) afi else "-"
                         }
                         binding.tvEditAfiStatus.text = afiDesc

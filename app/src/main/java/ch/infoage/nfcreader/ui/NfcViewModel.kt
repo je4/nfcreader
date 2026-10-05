@@ -52,6 +52,16 @@ enum class EditStatusType {
     PENDING
 }
 
+private data class ScanDataSignature(
+    val uid: String,
+    val content: String,
+    val rawPayloadHex: String,
+    val location: String,
+    val targetUrl: String,
+    val httpMethod: String,
+    val libraryData: FinnishLibraryData?
+)
+
 class NfcViewModel(
     private val urlDispatcher: UrlDispatcher = UrlDispatcher()
 ) : ViewModel() {
@@ -104,7 +114,7 @@ class NfcViewModel(
     private val _editAfi = MutableStateFlow("")
     val editAfi: StateFlow<String> = _editAfi.asStateFlow()
 
-    private val _editStatus = MutableStateFlow("Bereit. Wählen Sie eine Aktion oder halten Sie ein ISO 15693 Tag an.")
+    private val _editStatus = MutableStateFlow("Bereit. Wählen Sie eine Aktion (z.B. 'Lesen').")
     val editStatus: StateFlow<String> = _editStatus.asStateFlow()
 
     private val _editStatusType = MutableStateFlow(EditStatusType.NEUTRAL)
@@ -115,8 +125,8 @@ class NfcViewModel(
 
     private var pendingWriteData: FinnishLibraryData? = null
 
-    // Keep track of the last processed content and time to prevent duplicate rapid fires in scan mode
-    private var lastScannedUid: String? = null
+    // Keep track of the last processed scan data to prevent duplicate web-service calls for identical data
+    private var lastScannedData: ScanDataSignature? = null
     private var lastScannedTime: Long = 0
 
     fun setTab(tab: AppTab) {
@@ -160,6 +170,8 @@ class NfcViewModel(
     fun clearHistory() {
         _scanHistory.value = emptyList()
         _lastScan.value = null
+        lastScannedData = null
+        lastScannedTime = 0
     }
 
     fun onEditReadClicked() {
@@ -178,7 +190,7 @@ class NfcViewModel(
     fun onEditToggleAfiClicked() {
         _pendingEditAction.value = EditAction.TOGGLE_AFI
         val currentAfi = _editAfi.value.trim().uppercase()
-        val targetAfi = if (currentAfi == "C7") "07" else "C7"
+        val targetAfi = if (currentAfi == "C2") "07" else "C2"
         _editStatus.value = "Halten Sie ein Tag an zum Umschalten von AFI ($currentAfi -> $targetAfi)..."
         _editStatusType.value = EditStatusType.PENDING
     }
@@ -208,6 +220,10 @@ class NfcViewModel(
     }
 
     fun handleEditTagDiscovered(tag: Tag) {
+        if (_pendingEditAction.value == EditAction.NONE) {
+            return
+        }
+
         if (!Iso15693Writer.isIso15693(tag)) {
             _editStatus.value = "Nur ISO 15693 (NfcV) Tags werden im Edit-Modus unterstützt."
             _editStatusType.value = EditStatusType.ERROR
@@ -240,7 +256,7 @@ class NfcViewModel(
             }
             EditAction.TOGGLE_AFI -> {
                 val currentAfi = _editAfi.value.trim().uppercase()
-                val targetAfi = if (currentAfi == "C7") "07" else "C7"
+                val targetAfi = if (currentAfi == "C2") "07" else "C2"
 
                 val afiResult = Iso15693Writer.writeAfi(tag, targetAfi)
                 if (afiResult.isSuccess) {
@@ -255,7 +271,7 @@ class NfcViewModel(
                 }
                 _pendingEditAction.value = EditAction.NONE
             }
-            EditAction.READ, EditAction.NONE -> {
+            EditAction.READ -> {
                 val readResult = Iso15693Writer.readTag(tag)
                 if (readResult.isSuccess) {
                     val parsed = readResult.getOrThrow()
@@ -267,6 +283,9 @@ class NfcViewModel(
                     _editStatusType.value = EditStatusType.ERROR
                 }
                 _pendingEditAction.value = EditAction.NONE
+            }
+            EditAction.NONE -> {
+                // Nur lesen, wenn der Button 'Lesen' gedrückt wurde
             }
         }
     }
@@ -320,7 +339,7 @@ class NfcViewModel(
             isCrcValid = true,
             isTagEmpty = false,
             crcHex = "A1B2",
-            afi = "C7"
+            afi = "C2"
         )
         val encoded = FinnishDataModelParser.encode(testData)
         val hex = Iso15693Parser.bytesToHex(encoded)
@@ -362,7 +381,7 @@ class NfcViewModel(
 
     fun triggerTestEditToggleAfi() {
         val currentAfi = _editAfi.value.trim().uppercase()
-        val targetAfi = if (currentAfi == "C7") "07" else "C7"
+        val targetAfi = if (currentAfi == "C2") "07" else "C2"
         _editAfi.value = targetAfi
         val currentData = _editLibraryData.value
         if (currentData != null) {
@@ -390,7 +409,7 @@ class NfcViewModel(
             isCrcValid = true,
             isTagEmpty = false,
             crcHex = "A1B2",
-            afi = "C7"
+            afi = "C2"
         )
         val content = mockContent ?: mockLibraryData.toFormattedString()
         val rawPayloadHex = FinnishDataModelParser.encode(mockLibraryData).let {
@@ -418,12 +437,26 @@ class NfcViewModel(
         val currentMethod = _httpMethod.value
         val currentKey = _jwtKey.value
 
-        // Throttle identical scans within 500ms
+        val currentData = ScanDataSignature(
+            uid = uid,
+            content = content,
+            rawPayloadHex = rawPayloadHex,
+            location = currentText,
+            targetUrl = currentUrl,
+            httpMethod = currentMethod,
+            libraryData = libraryData
+        )
+
+        // Ignore duplicate scans with identical data
         val now = System.currentTimeMillis()
-        if (uid == lastScannedUid && (now - lastScannedTime) < 500) {
-            return
+        if (currentData == lastScannedData) {
+            val last = _lastScan.value
+            // If the last call was successful or is still pending/recent, do not call web service again
+            if (last == null || last.isSuccess || (now - lastScannedTime) < 1000) {
+                return
+            }
         }
-        lastScannedUid = uid
+        lastScannedData = currentData
         lastScannedTime = now
 
         viewModelScope.launch {

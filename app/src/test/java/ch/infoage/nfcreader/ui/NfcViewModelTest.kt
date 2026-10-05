@@ -276,7 +276,7 @@ class NfcViewModelTest {
             isil = "ISIL-1",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
         viewModel.onEditWriteClicked(dummyData)
         assertEquals(EditAction.WRITE, viewModel.pendingEditAction.value)
@@ -301,14 +301,14 @@ class NfcViewModelTest {
             isil = "ISIL-42",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
 
         viewModel.triggerTestEditScan(testData)
 
         assertEquals("E004015099887766", viewModel.editUid.value)
         assertEquals("ISO 15693 (NfcV - Test)", viewModel.editTagType.value)
-        assertEquals("C7", viewModel.editAfi.value)
+        assertEquals("C2", viewModel.editAfi.value)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
         assertTrue(viewModel.editHexDump.value.contains("Block 00:"))
         assertNotNull(viewModel.editLibraryData.value)
@@ -352,7 +352,7 @@ class NfcViewModelTest {
 
     @Test
     fun testTriggerTestEditToggleAfi() {
-        // Initially set AFI to C7 (Gesichert)
+        // Initially set AFI to C2 (Gesichert)
         val testData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
             uid = "E004015011112222",
             version = 1,
@@ -364,21 +364,86 @@ class NfcViewModelTest {
             isil = "ISIL-1",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C7"
+            afi = "C2"
         )
         viewModel.triggerTestEditScan(testData)
-        assertEquals("C7", viewModel.editAfi.value)
+        assertEquals("C2", viewModel.editAfi.value)
 
-        // Toggle AFI: C7 -> 07 (Ausgeliehen)
+        // Toggle AFI: C2 -> 07 (Ausgeliehen)
         viewModel.triggerTestEditToggleAfi()
         assertEquals("07", viewModel.editAfi.value)
         assertEquals("07", viewModel.editLibraryData.value?.afi)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
 
-        // Toggle AFI again: 07 -> C7 (Gesichert)
+        // Toggle AFI again: 07 -> C2 (Gesichert)
         viewModel.triggerTestEditToggleAfi()
-        assertEquals("C7", viewModel.editAfi.value)
-        assertEquals("C7", viewModel.editLibraryData.value?.afi)
+        assertEquals("C2", viewModel.editAfi.value)
+        assertEquals("C2", viewModel.editLibraryData.value?.afi)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+    }
+
+    @Test
+    fun testDuplicateScansWithIdenticalDataCallsWebServiceOnlyOnce() = runTest {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"success\":true}")
+        )
+
+        val serverUrl = mockWebServer.url("/scan-endpoint").toString()
+        viewModel.setUserText("Raum A")
+        viewModel.setTargetUrl(serverUrl)
+
+        // First scan
+        viewModel.processScan(
+            uid = "E004015012345678",
+            tagType = "ISO 15693 (NfcV)",
+            content = "SAME_CONTENT",
+            rawPayloadHex = "A1B2C3D4"
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, mockWebServer.requestCount)
+        assertEquals(1, viewModel.scanHistory.value.size)
+
+        // Second scan with exact same data -> should not call web service
+        viewModel.processScan(
+            uid = "E004015012345678",
+            tagType = "ISO 15693 (NfcV)",
+            content = "SAME_CONTENT",
+            rawPayloadHex = "A1B2C3D4"
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, mockWebServer.requestCount)
+        assertEquals(1, viewModel.scanHistory.value.size)
+
+        // Third scan with different UID / data -> should trigger web service
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"success\":true}")
+        )
+        viewModel.processScan(
+            uid = "E004015087654321",
+            tagType = "ISO 15693 (NfcV)",
+            content = "DIFFERENT_CONTENT",
+            rawPayloadHex = "FFFFFFFF"
+        )
+        advanceUntilIdle()
+
+        assertEquals(2, mockWebServer.requestCount)
+        assertEquals(2, viewModel.scanHistory.value.size)
+    }
+
+    @Test
+    fun testEditActionReadRequiresButtonClick() {
+        // Initial state: pendingEditAction is NONE
+        assertEquals(EditAction.NONE, viewModel.pendingEditAction.value)
+
+        // When button "Lesen" is clicked, pendingEditAction changes to READ and status is PENDING
+        viewModel.onEditReadClicked()
+        assertEquals(EditAction.READ, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
     }
 }

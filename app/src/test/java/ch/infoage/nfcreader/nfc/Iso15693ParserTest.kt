@@ -58,14 +58,14 @@ class Iso15693ParserTest {
         // Byte 0: 0x00
         // Byte 1: 0x02 (only AFI flag set)
         // Bytes 2..9: UID
-        // Byte 10: AFI (0xC7 = Gesichert)
+        // Byte 10: AFI (0xC2 = Gesichert)
         val response = byteArrayOf(
             0x00, 0x02,
             0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
-            0xC7.toByte()
+            0xC2.toByte()
         )
         val afi = Iso15693Parser.parseAfiFromSystemInfo(response)
-        assertEquals("C7", afi)
+        assertEquals("C2", afi)
     }
 
     @Test

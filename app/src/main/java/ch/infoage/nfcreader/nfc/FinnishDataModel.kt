@@ -53,7 +53,7 @@ data class FinnishLibraryData(
             if (afi.isNotBlank()) {
                 val statusDesc = when (afi.uppercase()) {
                     "07" -> "Ausgeliehen"
-                    "C7" -> "Gesichert"
+                    "C2" -> "Gesichert"
                     else -> afi
                 }
                 append(" | AFI: ").append(afi.uppercase()).append(" (").append(statusDesc).append(")")

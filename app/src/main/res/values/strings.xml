@@ -39,11 +39,11 @@
     <string name="nav_edit">Edit</string>
 
     <!-- Edit Mode Strings -->
-    <string name="btn_edit_read">NFC lesen</string>
-    <string name="btn_edit_write">NFC schreiben</string>
+    <string name="btn_edit_read">Lesen</string>
+    <string name="btn_edit_write">Schreiben</string>
     <string name="btn_edit_toggle_afi">AFI umschalten</string>
     <string name="btn_edit_test">Test-Tag</string>
-    <string name="edit_status_ready">Bereit. Wählen Sie eine Aktion oder halten Sie ein ISO 15693 Tag an.</string>
+    <string name="edit_status_ready">Bereit. Wählen Sie eine Aktion (z.B. \'Lesen\').</string>
     <string name="edit_status_reading">Halten Sie ein ISO 15693 Tag an die Rückseite zum Lesen...</string>
     <string name="edit_status_writing">Halten Sie ein ISO 15693 Tag an die Rückseite zum Schreiben...</string>
     <string name="edit_status_toggling_afi">Halten Sie ein ISO 15693 Tag an zum AFI-Umschalten...</string>
@@ -69,10 +69,10 @@
     <string name="edit_field_usage_type">Nutzungsart (Usage Type)</string>
     <string name="edit_field_version">Version</string>
     <string name="edit_field_afi">AFI (Hex)</string>
-    <string name="edit_field_afi_hint">z.B. 07 oder C7</string>
+    <string name="edit_field_afi_hint">z.B. 07 oder C2</string>
     <string name="edit_crc_valid">Gültig (OK)</string>
     <string name="edit_crc_invalid">Fehler / Ungültig</string>
-    <string name="edit_afi_secured">C7 (Gesichert)</string>
+    <string name="edit_afi_secured">C2 (Gesichert)</string>
     <string name="edit_afi_loaned">07 (Ausgeliehen)</string>
 
     <!-- About / Copyright -->
