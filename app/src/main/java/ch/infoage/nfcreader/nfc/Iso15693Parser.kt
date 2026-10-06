@@ -56,7 +56,7 @@ object Iso15693Parser {
             }
         }
 
-        val tagType = if (isIso15693) "ISO 15693 (NfcV)" else techList.joinToString(", ") { it.substringAfterLast('.') }
+        val tagType = if (isIso15693) resolveIso15693TagType(uidHex) else techList.joinToString(", ") { it.substringAfterLast('.') }
 
         // Try reading NDEF first
         val ndefText = readNdefMessage(tag)
@@ -231,6 +231,41 @@ object Iso15693Parser {
         return null
     }
 
+    /**
+     * Ermittelt eine kompakte Transponder-Typbezeichnung (Hersteller, Modell und Protokoll)
+     * anhand der 64-Bit UID nach ISO/IEC 15693.
+     */
+    fun resolveIso15693TagType(uidHex: String): String {
+        val cleanUid = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        if (cleanUid.length >= 4 && cleanUid.startsWith("E0")) {
+            val mfgCode = cleanUid.substring(2, 4)
+            val productCode = if (cleanUid.length >= 6) cleanUid.substring(4, 6) else ""
+            return when (mfgCode) {
+                "04" -> {
+                    // NXP Semiconductors
+                    when (productCode) {
+                        "01" -> "NXP ICODE SLIX (ISO 15693)"
+                        "02" -> "NXP ICODE SLIX-S (ISO 15693)"
+                        "03" -> "NXP ICODE SLIX2 (ISO 15693)"
+                        "04" -> "NXP ICODE DNA (ISO 15693)"
+                        "05" -> "NXP ICODE SLIX-L (ISO 15693)"
+                        "00" -> "NXP ICODE 1 (ISO 15693)"
+                        else -> "NXP ICODE (ISO 15693)"
+                    }
+                }
+                "07" -> "TI Tag-it HF-I Plus (ISO 15693)"
+                "02" -> "STMicroelectronics (ISO 15693)"
+                "16" -> "EM Microelectronic (ISO 15693)"
+                "05" -> "Infineon my-d (ISO 15693)"
+                "2B", "08" -> "Fujitsu FRAM (ISO 15693)"
+                "1D" -> "Maxim Integrated (ISO 15693)"
+                "06" -> "Sony (ISO 15693)"
+                else -> "ISO 15693 (NfcV)"
+            }
+        }
+        return "ISO 15693 (NfcV)"
+    }
+
     private fun parseAsciiIfPossible(bytes: ByteArray): String? {
         val filtered = bytes.filter { it in 32..126 || it == 10.toByte() || it == 13.toByte() }
         if (filtered.size > 2 && filtered.size >= bytes.size / 2) {
@@ -258,8 +293,8 @@ object Iso15693Parser {
                 append(" | Typ: ").append(libraryData.usageType)
                 if (libraryData.afi.isNotBlank()) {
                     val statusDesc = when (libraryData.afi.uppercase()) {
-                        "07" -> "Ausgeliehen"
-                        "C2" -> "Gesichert"
+                        "C2" -> "Ausgeliehen"
+                        "07" -> "Gesichert"
                         else -> libraryData.afi
                     }
                     append(" | AFI: ").append(libraryData.afi.uppercase()).append(" (").append(statusDesc).append(")")

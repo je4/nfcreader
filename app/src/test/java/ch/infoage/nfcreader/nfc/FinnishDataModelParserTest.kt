@@ -131,16 +131,16 @@ class FinnishDataModelParserTest {
             isil = "123",
             isCrcValid = true,
             isTagEmpty = false,
-            afi = "C2"
+            afi = "07"
         )
         assertEquals(
-            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: C2 (Gesichert) | Ver: 1 | CRC: OK",
+            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: 07 (Gesichert) | Ver: 1 | CRC: OK",
             dataSecured.toFormattedString()
         )
 
-        val dataLoaned = dataSecured.copy(afi = "07")
+        val dataLoaned = dataSecured.copy(afi = "C2")
         assertEquals(
-            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: 07 (Ausgeliehen) | Ver: 1 | CRC: OK",
+            "Item-ID: 301100001234 | ISIL: DE-123 | Teil: 1/1 | Typ: 1 | AFI: C2 (Ausgeliehen) | Ver: 1 | CRC: OK",
             dataLoaned.toFormattedString()
         )
     }

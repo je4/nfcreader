@@ -36,13 +36,13 @@ class Iso15693ParserTest {
     }
 
     @Test
-    fun testParseAfiFromSystemInfoWithDsfidAndAfiLoaned() {
+    fun testParseAfiFromSystemInfoWithDsfidAndAfiSecured() {
         // Response format:
         // Byte 0: 0x00 (success)
         // Byte 1: 0x03 (DSFID + AFI flags set)
         // Bytes 2..9: UID (8 bytes)
         // Byte 10: DSFID (0x01)
-        // Byte 11: AFI (0x07 = Ausgeliehen)
+        // Byte 11: AFI (0x07 = Gesichert)
         val response = byteArrayOf(
             0x00, 0x03,
             0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
@@ -54,11 +54,11 @@ class Iso15693ParserTest {
     }
 
     @Test
-    fun testParseAfiFromSystemInfoWithoutDsfidSecured() {
+    fun testParseAfiFromSystemInfoWithoutDsfidLoaned() {
         // Byte 0: 0x00
         // Byte 1: 0x02 (only AFI flag set)
         // Bytes 2..9: UID
-        // Byte 10: AFI (0xC2 = Gesichert)
+        // Byte 10: AFI (0xC2 = Ausgeliehen)
         val response = byteArrayOf(
             0x00, 0x02,
             0xE0.toByte(), 0x04, 0x01, 0x50, 0x12, 0x34, 0x56, 0x78,
@@ -78,5 +78,35 @@ class Iso15693ParserTest {
         )
         val afi = Iso15693Parser.parseAfiFromSystemInfo(response)
         assertEquals(null, afi)
+    }
+
+    @Test
+    fun testResolveIso15693TagTypeNxpChips() {
+        assertEquals("NXP ICODE SLIX (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004015012345678"))
+        assertEquals("NXP ICODE SLIX-S (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004025012345678"))
+        assertEquals("NXP ICODE SLIX2 (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004035012345678"))
+        assertEquals("NXP ICODE DNA (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004045012345678"))
+        assertEquals("NXP ICODE SLIX-L (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004055012345678"))
+        assertEquals("NXP ICODE 1 (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004005012345678"))
+        assertEquals("NXP ICODE (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E004995012345678"))
+    }
+
+    @Test
+    fun testResolveIso15693TagTypeOtherManufacturers() {
+        assertEquals("TI Tag-it HF-I Plus (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E00700123456789A"))
+        assertEquals("STMicroelectronics (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E00200123456789A"))
+        assertEquals("EM Microelectronic (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E01600123456789A"))
+        assertEquals("Infineon my-d (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E00500123456789A"))
+        assertEquals("Fujitsu FRAM (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E02B00123456789A"))
+        assertEquals("Fujitsu FRAM (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E00800123456789A"))
+        assertEquals("Maxim Integrated (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E01D00123456789A"))
+        assertEquals("Sony (ISO 15693)", Iso15693Parser.resolveIso15693TagType("E00600123456789A"))
+    }
+
+    @Test
+    fun testResolveIso15693TagTypeFallback() {
+        assertEquals("ISO 15693 (NfcV)", Iso15693Parser.resolveIso15693TagType("E0FF00123456789A"))
+        assertEquals("ISO 15693 (NfcV)", Iso15693Parser.resolveIso15693TagType("04A1B2C3"))
+        assertEquals("ISO 15693 (NfcV)", Iso15693Parser.resolveIso15693TagType(""))
     }
 }

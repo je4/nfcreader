@@ -72,8 +72,8 @@
     <string name="edit_field_afi_hint">z.B. 07 oder C2</string>
     <string name="edit_crc_valid">Gültig (OK)</string>
     <string name="edit_crc_invalid">Fehler / Ungültig</string>
-    <string name="edit_afi_secured">C2 (Gesichert)</string>
-    <string name="edit_afi_loaned">07 (Ausgeliehen)</string>
+    <string name="edit_afi_secured">07 (Gesichert)</string>
+    <string name="edit_afi_loaned">C2 (Ausgeliehen)</string>
 
     <!-- About / Copyright -->
     <string name="copyright_notice">© 2026 info-age GmbH, Basel\nLizenziert unter Apache License 2.0</string>

@@ -345,7 +345,7 @@ class NfcViewModel(
         val hex = Iso15693Parser.bytesToHex(encoded)
         val parsed = ParsedNfcTag(
             uid = mockUid,
-            tagType = "ISO 15693 (NfcV - Test)",
+            tagType = Iso15693Parser.resolveIso15693TagType(mockUid),
             rawPayloadHex = hex,
             textContent = testData.toFormattedString(),
             fullSummary = testData.toFormattedString(),
@@ -365,7 +365,7 @@ class NfcViewModel(
         val finalData = parsed ?: data
         val parsedTag = ParsedNfcTag(
             uid = finalData.uid,
-            tagType = "ISO 15693 (NfcV - Test)",
+            tagType = Iso15693Parser.resolveIso15693TagType(finalData.uid),
             rawPayloadHex = hex,
             textContent = finalData.toFormattedString(),
             fullSummary = finalData.toFormattedString(),
@@ -418,7 +418,7 @@ class NfcViewModel(
 
         processScan(
             uid = mockUid,
-            tagType = "ISO 15693 (NfcV - Test)",
+            tagType = Iso15693Parser.resolveIso15693TagType(mockUid),
             content = content,
             rawPayloadHex = rawPayloadHex,
             libraryData = if (mockContent == null) mockLibraryData else null

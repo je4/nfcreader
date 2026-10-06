@@ -72,8 +72,8 @@ class ScanHistoryAdapter(
                     .joinToString("-")
                 val afiStr = if (lib.afi.isNotBlank()) {
                     val status = when (lib.afi.uppercase()) {
-                        "07" -> "Ausgeliehen"
-                        "C2" -> "Gesichert"
+                        "C2" -> "Ausgeliehen"
+                        "07" -> "Gesichert"
                         else -> lib.afi
                     }
                     " | Status: $status"

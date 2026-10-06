@@ -307,7 +307,7 @@ class NfcViewModelTest {
         viewModel.triggerTestEditScan(testData)
 
         assertEquals("E004015099887766", viewModel.editUid.value)
-        assertEquals("ISO 15693 (NfcV - Test)", viewModel.editTagType.value)
+        assertEquals("NXP ICODE SLIX (ISO 15693)", viewModel.editTagType.value)
         assertEquals("C2", viewModel.editAfi.value)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
         assertTrue(viewModel.editHexDump.value.contains("Block 00:"))
@@ -352,7 +352,7 @@ class NfcViewModelTest {
 
     @Test
     fun testTriggerTestEditToggleAfi() {
-        // Initially set AFI to C2 (Gesichert)
+        // Initially set AFI to C2 (Ausgeliehen)
         val testData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
             uid = "E004015011112222",
             version = 1,
@@ -369,13 +369,13 @@ class NfcViewModelTest {
         viewModel.triggerTestEditScan(testData)
         assertEquals("C2", viewModel.editAfi.value)
 
-        // Toggle AFI: C2 -> 07 (Ausgeliehen)
+        // Toggle AFI: C2 -> 07 (Gesichert)
         viewModel.triggerTestEditToggleAfi()
         assertEquals("07", viewModel.editAfi.value)
         assertEquals("07", viewModel.editLibraryData.value?.afi)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
 
-        // Toggle AFI again: 07 -> C2 (Gesichert)
+        // Toggle AFI again: 07 -> C2 (Ausgeliehen)
         viewModel.triggerTestEditToggleAfi()
         assertEquals("C2", viewModel.editAfi.value)
         assertEquals("C2", viewModel.editLibraryData.value?.afi)
