@@ -295,4 +295,49 @@ class Iso15693ParserTest {
         assertEquals("ISO 15693 (NfcV)", Iso15693Parser.resolveIso15693TagType("04A1B2C3"))
         assertEquals("ISO 15693 (NfcV)", Iso15693Parser.resolveIso15693TagType(""))
     }
+
+    @Test
+    fun testNormalizeUidBytes() {
+        // Raw transmission bytes from NFC-V tag (LSB first, ending in 0xE0)
+        val lsbBytes = byteArrayOf(0x43, 0x75, 0x55, 0x35, 0x08, 0x01, 0x04, 0xE0.toByte())
+        val normalized = Iso15693Parser.normalizeUid(lsbBytes, isIso15693 = true)
+        val expected = byteArrayOf(0xE0.toByte(), 0x04, 0x01, 0x08, 0x35, 0x55, 0x75, 0x43)
+        org.junit.Assert.assertArrayEquals(expected, normalized)
+
+        // Already MSB first (starts with 0xE0)
+        val msbBytes = byteArrayOf(0xE0.toByte(), 0x04, 0x01, 0x08, 0x35, 0x55, 0x75, 0x43)
+        val untouched = Iso15693Parser.normalizeUid(msbBytes, isIso15693 = false)
+        org.junit.Assert.assertArrayEquals(msbBytes, untouched)
+    }
+
+    @Test
+    fun testNormalizeUidString() {
+        val lsbHex = "43755535080104E0"
+        val normalized = Iso15693Parser.normalizeUid(lsbHex)
+        assertEquals("E004010835557543", normalized)
+
+        val alreadyMsbHex = "E004010835557543"
+        assertEquals("E004010835557543", Iso15693Parser.normalizeUid(alreadyMsbHex))
+    }
+
+    @Test
+    fun testReversedUidTagResolutionAndDetails() {
+        // 43755535080104E0 is the reverse of E004010835557543 (NXP ICODE SLIX)
+        val reversedUid = "43755535080104E0"
+        assertEquals(TagIdentifierType.ISO15693_UID, Iso15693Parser.resolveIdentifierType(reversedUid))
+        assertEquals("NXP ICODE SLIX (ISO 15693)", Iso15693Parser.resolveIso15693TagType(reversedUid))
+
+        val details = Iso15693Parser.parseIso15693Details(reversedUid)
+        org.junit.Assert.assertNotNull(details)
+        assertEquals("04", details?.mfgCodeHex)
+        assertEquals("NXP Semiconductors", details?.manufacturerName)
+        assertEquals("01", details?.productCodeHex)
+        assertEquals("ICODE SLIX", details?.modelName)
+        assertEquals("0835557543", details?.serialNumberHex)
+
+        val transponderDetails = Iso15693Parser.parseTransponderDetails(reversedUid)
+        assertEquals(TagIdentifierType.ISO15693_UID, transponderDetails.identifierType)
+        org.junit.Assert.assertNotNull(transponderDetails.iso15693)
+        assertEquals("NXP ICODE SLIX (ISO 15693)", transponderDetails.formattedSummary)
+    }
 }

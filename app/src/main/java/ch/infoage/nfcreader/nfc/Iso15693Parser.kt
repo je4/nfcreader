@@ -101,12 +101,35 @@ data class NfcVData(
 object Iso15693Parser {
 
     /**
+     * Normalisiert eine UID / Bytefolge, indem ISO 15693 (NfcV) UIDs von LSB-first in MSB-first umgekehrt werden.
+     */
+    fun normalizeUid(rawBytes: ByteArray, isIso15693: Boolean = false): ByteArray {
+        if (rawBytes.size == 8) {
+            val lastByte = rawBytes.last().toInt() and 0xFF
+            val firstByte = rawBytes.first().toInt() and 0xFF
+            if ((lastByte == 0xE0 && firstByte != 0xE0) || (isIso15693 && lastByte == 0xE0)) {
+                return rawBytes.reversedArray()
+            }
+        }
+        return rawBytes
+    }
+
+    /**
+     * Normalisiert einen UID-Hex-String, falls dieser in LSB-first Übertragungsreihenfolge (endet mit E0) vorliegt.
+     */
+    fun normalizeUid(uidHex: String): String {
+        val clean = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        if (clean.length == 16 && clean.endsWith("E0") && !clean.startsWith("E0")) {
+            return clean.chunked(2).reversed().joinToString("")
+        }
+        return clean
+    }
+
+    /**
      * Parses an ISO 15693 (NfcV) Tag or any other compatible NFC tag.
      */
     fun parseTag(tag: Tag): ParsedNfcTag {
-        val uidBytes = tag.id
-        // ISO 15693 UIDs are 8 bytes, often stored LSB first on tag
-        val uidHex = bytesToHex(uidBytes)
+        val rawUidBytes = tag.id
         
         var isIso15693 = false
         val techList = tag.techList
@@ -116,6 +139,10 @@ object Iso15693Parser {
                 break
             }
         }
+
+        // ISO 15693 UIDs are transmitted LSB first over the air; normalize to MSB first representation
+        val uidBytes = normalizeUid(rawUidBytes, isIso15693)
+        val uidHex = bytesToHex(uidBytes)
 
         val tagType = if (isIso15693) resolveIso15693TagType(uidHex) else techList.joinToString(", ") { it.substringAfterLast('.') }
 
@@ -166,7 +193,7 @@ object Iso15693Parser {
      * Bestimmt den [TagIdentifierType] anhand des Hex-Präfixes nach ISO/IEC 15963.
      */
     fun resolveIdentifierType(identifierHex: String): TagIdentifierType {
-        val clean = identifierHex.replace(":", "").replace(" ", "").trim().uppercase()
+        val clean = normalizeUid(identifierHex)
         return when {
             clean.startsWith("E0") -> TagIdentifierType.ISO15693_UID
             clean.startsWith("E2") -> TagIdentifierType.EPC_GEN2_TID
@@ -359,7 +386,7 @@ object Iso15693Parser {
      * anhand der 64-Bit UID nach ISO/IEC 15693 (Präfix E0) oder EPC Gen2 TID (Präfix E2, MDID/TMN).
      */
     fun resolveIso15693TagType(uidHex: String): String {
-        val cleanUid = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        val cleanUid = normalizeUid(uidHex)
         return when {
             cleanUid.length >= 4 && cleanUid.startsWith("E0") -> resolveIso15693UidTagType(cleanUid)
             cleanUid.length >= 4 && cleanUid.startsWith("E2") -> resolveEpcGen2TidTagType(cleanUid)
@@ -371,7 +398,7 @@ object Iso15693Parser {
      * Erstellt eine vollständige [TransponderDetails]-Instanz für eine UID/TID.
      */
     fun parseTransponderDetails(uidHex: String): TransponderDetails {
-        val clean = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        val clean = normalizeUid(uidHex)
         val idType = resolveIdentifierType(clean)
         val epcTid = if (idType == TagIdentifierType.EPC_GEN2_TID) parseEpcTidDetails(clean) else null
         val iso15693 = if (idType == TagIdentifierType.ISO15693_UID) parseIso15693Details(clean) else null
@@ -444,7 +471,7 @@ object Iso15693Parser {
      * aus einer 64-Bit ISO 15693 (NfcV) UID.
      */
     fun parseIso15693Details(uidHex: String): Iso15693Details? {
-        val cleanUid = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        val cleanUid = normalizeUid(uidHex)
         if (!cleanUid.startsWith("E0") || cleanUid.length < 4) return null
 
         val mfgCodeHex = cleanUid.substring(2, 4)
