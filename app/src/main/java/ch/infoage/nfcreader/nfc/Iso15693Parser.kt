@@ -63,7 +63,9 @@ data class TransponderDetails(
     val identifierType: TagIdentifierType,
     val epcTid: EpcTidDetails? = null,
     val iso15693: Iso15693Details? = null,
-    val formattedSummary: String
+    val formattedSummary: String,
+    val isAfiPasswordProtected: Boolean? = null,
+    val isDataWriteProtected: Boolean? = null
 )
 
 data class ChipInfo(
@@ -90,12 +92,16 @@ data class ParsedNfcTag(
     val libraryData: FinnishLibraryData? = null,
     val afi: String? = null,
     val identifierType: TagIdentifierType = TagIdentifierType.GENERIC,
-    val transponderDetails: TransponderDetails? = null
+    val transponderDetails: TransponderDetails? = null,
+    val isAfiPasswordProtected: Boolean? = null,
+    val isDataWriteProtected: Boolean? = null
 )
 
 data class NfcVData(
     val blocks: ByteArray?,
-    val afiHex: String? = null
+    val afiHex: String? = null,
+    val isAfiPasswordProtected: Boolean? = null,
+    val isDataWriteProtected: Boolean? = null
 )
 
 object Iso15693Parser {
@@ -172,9 +178,20 @@ object Iso15693Parser {
             else -> null
         }
 
-        val fullSummary = buildSummary(uidHex, textContent, rawPayloadHex, libraryData)
+        val fullSummary = buildSummary(
+            uid = uidHex,
+            text = textContent,
+            rawHex = rawPayloadHex,
+            libraryData = libraryData,
+            isAfiPasswordProtected = nfcvData?.isAfiPasswordProtected,
+            isDataWriteProtected = nfcvData?.isDataWriteProtected
+        )
         val identifierType = resolveIdentifierType(uidHex)
-        val transponderDetails = parseTransponderDetails(uidHex)
+        val transponderDetails = parseTransponderDetails(
+            uidHex = uidHex,
+            isAfiPasswordProtected = nfcvData?.isAfiPasswordProtected,
+            isDataWriteProtected = nfcvData?.isDataWriteProtected
+        )
 
         return ParsedNfcTag(
             uid = uidHex,
@@ -185,7 +202,9 @@ object Iso15693Parser {
             libraryData = libraryData,
             afi = afiHex,
             identifierType = identifierType,
-            transponderDetails = transponderDetails
+            transponderDetails = transponderDetails,
+            isAfiPasswordProtected = nfcvData?.isAfiPasswordProtected,
+            isDataWriteProtected = nfcvData?.isDataWriteProtected
         )
     }
 
@@ -235,7 +254,7 @@ object Iso15693Parser {
     }
 
     /**
-     * Reads memory blocks and AFI from an ISO 15693 (NfcV) Tag.
+     * Reads memory blocks, AFI, AFI password protection status and block write security status from an ISO 15693 (NfcV) Tag.
      */
     private fun readNfcVData(tag: Tag): NfcVData? {
         val nfcv = NfcV.get(tag) ?: return null
@@ -263,10 +282,34 @@ object Iso15693Parser {
                     }
                 }
             } catch (ignored: Exception) {
-                // Not all chips support Get System Information; continue with block reading
+                // Not all chips support Get System Information; continue with other queries
             }
 
-            // 2. Read memory blocks
+            // 2. Read AFI Password Protection Status (z. B. NXP ICODE SLIX / SLIX2 Get Protection Status)
+            var isAfiPasswordProtected: Boolean? = null
+            try {
+                // Try NXP ICODE Get Protection Status (0xC6, Mfg 0x04) in addressed mode
+                val protCmd = ByteArray(3 + uid.size + 1).apply {
+                    this[0] = 0x22.toByte() // Flag: High data rate | Addressed
+                    this[1] = 0xC6.toByte() // Command: Get Protection Status (NXP Custom)
+                    this[2] = 0x04.toByte() // Mfg Code: NXP Semiconductors
+                    System.arraycopy(uid, 0, this, 3, uid.size)
+                    this[3 + uid.size] = 0x00.toByte() // Protection pointer: 0x00
+                }
+                val protResp = nfcv.transceive(protCmd)
+                isAfiPasswordProtected = parseProtectionStatusFromResponse(protResp)
+
+                if (isAfiPasswordProtected == null) {
+                    // Try unaddressed mode: [0x02, 0xC6, 0x04, 0x00]
+                    val unaddressedProtCmd = byteArrayOf(0x02, 0xC6.toByte(), 0x04, 0x00)
+                    val unaddressedProtResp = nfcv.transceive(unaddressedProtCmd)
+                    isAfiPasswordProtected = parseProtectionStatusFromResponse(unaddressedProtResp)
+                }
+            } catch (ignored: Exception) {
+                // Not all chips support Get Protection Status; continue
+            }
+
+            // 3. Read memory blocks
             val outputStream = ByteArrayOutputStream()
             for (blockIndex in 0 until 16) {
                 val cmd = ByteArray(1 + 1 + uid.size + 1).apply {
@@ -296,12 +339,38 @@ object Iso15693Parser {
                     break
                 }
             }
+
+            // 4. Read Data Write Security Status (ISO 15693 Get Multiple Block Security Status 0x2C)
+            var isDataWriteProtected: Boolean? = null
+            try {
+                val secCmd = ByteArray(1 + 1 + uid.size + 1 + 1).apply {
+                    this[0] = 0x22.toByte() // Flag: High data rate | Addressed
+                    this[1] = 0x2C.toByte() // Command: Get Multiple Block Security Status
+                    System.arraycopy(uid, 0, this, 2, uid.size)
+                    this[2 + uid.size] = 0x00.toByte() // First Block: 0
+                    this[3 + uid.size] = 0x0F.toByte() // Number of Blocks: 15 (16 Blöcke 0..15)
+                }
+                val secResp = nfcv.transceive(secCmd)
+                isDataWriteProtected = parseBlockSecurityStatusFromResponse(secResp)
+
+                if (isDataWriteProtected == null) {
+                    // Try unaddressed mode
+                    val unaddressedSecCmd = byteArrayOf(0x02, 0x2C.toByte(), 0x00, 0x0F)
+                    val unaddressedSecResp = nfcv.transceive(unaddressedSecCmd)
+                    isDataWriteProtected = parseBlockSecurityStatusFromResponse(unaddressedSecResp)
+                }
+            } catch (ignored: Exception) {
+                // Not all chips support Get Multiple Block Security Status
+            }
+
             nfcv.close()
 
             val blocks = outputStream.toByteArray()
             NfcVData(
                 blocks = if (blocks.isNotEmpty()) blocks else null,
-                afiHex = afiHex
+                afiHex = afiHex,
+                isAfiPasswordProtected = isAfiPasswordProtected,
+                isDataWriteProtected = isDataWriteProtected
             )
         } catch (e: Exception) {
             try {
@@ -309,6 +378,27 @@ object Iso15693Parser {
             } catch (ignored: Exception) {}
             null
         }
+    }
+
+    /**
+     * Extrahiert den AFI-Passwortschutzstatus aus einer NXP ICODE Get Protection Status Antwort (z. B. Befehl 0xC6).
+     * Gibt true zurück, wenn Bit 0 (AFI Passwortschutz) aktiv ist, false wenn inaktiv, oder null bei ungültiger Antwort.
+     */
+    fun parseProtectionStatusFromResponse(response: ByteArray?): Boolean? {
+        if (response == null || response.size < 2) return null
+        if (response[0] != 0x00.toByte()) return null
+        val statusByte = response[1].toInt() and 0xFF
+        return (statusByte and 0x01) != 0
+    }
+
+    /**
+     * Extrahiert den Daten-Schreibschutzstatus aus einer ISO 15693 Get Multiple Block Security Status Antwort (Befehl 0x2C).
+     * Gibt true zurück, wenn mindestens ein Datenblock gesperrt/schreibgeschützt (Bit 0 = 1) ist, false wenn alle ungesperrt sind, oder null bei ungültiger Antwort.
+     */
+    fun parseBlockSecurityStatusFromResponse(response: ByteArray?): Boolean? {
+        if (response == null || response.size <= 1) return null
+        if (response[0] != 0x00.toByte()) return null
+        return (1 until response.size).any { (response[it].toInt() and 0x01) != 0 }
     }
 
     /**
@@ -397,7 +487,11 @@ object Iso15693Parser {
     /**
      * Erstellt eine vollständige [TransponderDetails]-Instanz für eine UID/TID.
      */
-    fun parseTransponderDetails(uidHex: String): TransponderDetails {
+    fun parseTransponderDetails(
+        uidHex: String,
+        isAfiPasswordProtected: Boolean? = null,
+        isDataWriteProtected: Boolean? = null
+    ): TransponderDetails {
         val clean = normalizeUid(uidHex)
         val idType = resolveIdentifierType(clean)
         val epcTid = if (idType == TagIdentifierType.EPC_GEN2_TID) parseEpcTidDetails(clean) else null
@@ -408,7 +502,9 @@ object Iso15693Parser {
             identifierType = idType,
             epcTid = epcTid,
             iso15693 = iso15693,
-            formattedSummary = summary
+            formattedSummary = summary,
+            isAfiPasswordProtected = isAfiPasswordProtected,
+            isDataWriteProtected = isDataWriteProtected
         )
     }
 
@@ -640,7 +736,9 @@ object Iso15693Parser {
         uid: String,
         text: String?,
         rawHex: String,
-        libraryData: FinnishLibraryData? = null
+        libraryData: FinnishLibraryData? = null,
+        isAfiPasswordProtected: Boolean? = null,
+        isDataWriteProtected: Boolean? = null
     ): String {
         return buildString {
             append("UID: ").append(uid)
@@ -660,6 +758,12 @@ object Iso15693Parser {
                         else -> libraryData.afi
                     }
                     append(" | AFI: ").append(libraryData.afi.uppercase()).append(" (").append(statusDesc).append(")")
+                }
+                if (isAfiPasswordProtected != null) {
+                    append(" | AFI-Passwortschutz: ").append(if (isAfiPasswordProtected) "Ein" else "Aus")
+                }
+                if (isDataWriteProtected != null) {
+                    append(" | Schreibschutz: ").append(if (isDataWriteProtected) "Ein" else "Aus")
                 }
                 append(" | Ver: ").append(libraryData.version)
                 append(" | CRC: ").append(if (libraryData.isCrcValid) "OK" else "Fehler")

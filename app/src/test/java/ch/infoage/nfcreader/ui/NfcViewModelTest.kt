@@ -328,6 +328,37 @@ class NfcViewModelTest {
         assertEquals("NXP Semiconductors", transponder?.iso15693?.manufacturerName)
         assertEquals("ICODE SLIX", transponder?.iso15693?.modelName)
         assertEquals("5099887766", transponder?.iso15693?.serialNumberHex)
+        assertEquals(false, viewModel.editAfiPasswordProtected.value)
+        assertEquals(false, viewModel.editDataWriteProtected.value)
+    }
+
+    @Test
+    fun testTriggerTestEditScanWithProtectionFlags() {
+        val testData = ch.infoage.nfcreader.nfc.FinnishLibraryData(
+            uid = "E004015099887766",
+            version = 1,
+            usageType = 2,
+            parts = 1,
+            partNo = 1,
+            itemId = "PROT-1234",
+            country = "CH",
+            isil = "ISIL-42",
+            isCrcValid = true,
+            isTagEmpty = false,
+            crcHex = "B2C3",
+            afi = "07"
+        )
+
+        viewModel.triggerTestEditScan(
+            mockData = testData,
+            mockAfiPasswordProtected = true,
+            mockDataWriteProtected = true
+        )
+
+        assertEquals(true, viewModel.editAfiPasswordProtected.value)
+        assertEquals(true, viewModel.editDataWriteProtected.value)
+        assertEquals(true, viewModel.editTransponderDetails.value?.isAfiPasswordProtected)
+        assertEquals(true, viewModel.editTransponderDetails.value?.isDataWriteProtected)
     }
 
     @Test
@@ -484,8 +515,8 @@ class NfcViewModelTest {
 
     @Test
     fun testAfiAndWritePasswordsInViewModel() {
-        assertEquals("0", viewModel.afiPassword.value)
-        assertEquals("0", viewModel.writePassword.value)
+        assertEquals("00000000", viewModel.afiPassword.value)
+        assertEquals("00000000", viewModel.writePassword.value)
         assertFalse(viewModel.useAfiPassword.value)
         assertFalse(viewModel.useWritePassword.value)
 
@@ -502,10 +533,10 @@ class NfcViewModelTest {
         assertTrue(viewModel.useWritePassword.value)
 
         viewModel.setAfiPassword("")
-        assertEquals("0", viewModel.afiPassword.value)
+        assertEquals("00000000", viewModel.afiPassword.value)
 
         viewModel.setWritePassword("   ")
-        assertEquals("0", viewModel.writePassword.value)
+        assertEquals("00000000", viewModel.writePassword.value)
 
         viewModel.setUseAfiPassword(false)
         assertFalse(viewModel.useAfiPassword.value)

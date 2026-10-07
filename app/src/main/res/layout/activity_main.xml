@@ -657,6 +657,58 @@
                                 android:textStyle="bold" />
                         </LinearLayout>
 
+                        <!-- AFI Password Protect Status -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditAfiProtected"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_afi_password_protect"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditAfiProtected"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <!-- Data Write Protect Status -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditWriteProtected"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_data_write_protect"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditWriteProtected"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
                         <!-- CRC Status -->
                         <LinearLayout
                             android:layout_width="match_parent"

@@ -26,14 +26,14 @@
     <string name="settings_jwt_desc">Optionaler JSON Web Token (JWT). Wenn hinterlegt, wird er automatisch als \'Authorization: Bearer &lt;token&gt;\' Header bei jedem Scan übertragen.</string>
     <string name="settings_jwt_label">JWT Key / Token</string>
     <string name="settings_passwords_section">Passwort-Konfiguration (ISO 15693)</string>
-    <string name="settings_passwords_desc">32-Bit Hexadezimal-Passwörter für AFI- und Schreiboperationen auf geschützten Tags (z. B. ICODE SLIX). Standardwert: 0.</string>
+    <string name="settings_passwords_desc">32-Bit Hexadezimal-Passwörter für AFI- und Schreiboperationen auf geschützten Tags (z. B. ICODE SLIX). Standardwert: 00000000.</string>
     <string name="settings_use_afi_password_label">AFI-Passwort verwenden</string>
     <string name="settings_afi_password_label">AFI-Passwort (32-Bit Hex)</string>
-    <string name="settings_afi_password_hint">z.B. 0 oder 00000000</string>
+    <string name="settings_afi_password_hint">z.B. 00000000</string>
     <string name="settings_use_write_password_label">Write-Passwort verwenden</string>
     <string name="settings_write_password_label">Write-Passwort (32-Bit Hex)</string>
-    <string name="settings_write_password_hint">z.B. 0 oder 00000000</string>
-    <string name="settings_password_invalid_hex">Ungültige 32-Bit Hex-Zahl (max. 8 Hex-Zeichen 0-9, A-F)</string>
+    <string name="settings_write_password_hint">z.B. 00000000</string>
+    <string name="settings_password_invalid_hex">Ungültige 32-Bit Hex-Zahl (genau 8 Hex-Zeichen 0-9, A-F erforderlich)</string>
     <string name="settings_debug_section">Debug-Modus</string>
     <string name="settings_debug_desc">Gibt bei jedem Scan-Vorgang den vollständigen HTTP-Request (URL, Header, Body) aus.</string>
     <string name="settings_debug_label">HTTP-Request Debug aktivieren</string>
@@ -70,6 +70,8 @@
     <string name="edit_field_flags">Flags (XTID/Sec/File)</string>
     <string name="edit_field_serial">Seriennummer</string>
     <string name="edit_field_afi_status">AFI Status</string>
+    <string name="edit_field_afi_password_protect">AFI-Passwortschutz</string>
+    <string name="edit_field_data_write_protect">Daten-Schreibschutz</string>
     <string name="edit_field_crc_status">CRC Prüfsumme</string>
     <string name="edit_field_item_id">Barcode / Primary Item-ID</string>
     <string name="edit_field_item_id_hint">Item-ID (max. 16 Zeichen)</string>

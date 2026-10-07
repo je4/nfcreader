@@ -132,6 +132,12 @@ class NfcViewModel(
     private val _editTransponderDetails = MutableStateFlow<TransponderDetails?>(null)
     val editTransponderDetails: StateFlow<TransponderDetails?> = _editTransponderDetails.asStateFlow()
 
+    private val _editAfiPasswordProtected = MutableStateFlow<Boolean?>(null)
+    val editAfiPasswordProtected: StateFlow<Boolean?> = _editAfiPasswordProtected.asStateFlow()
+
+    private val _editDataWriteProtected = MutableStateFlow<Boolean?>(null)
+    val editDataWriteProtected: StateFlow<Boolean?> = _editDataWriteProtected.asStateFlow()
+
     private val _editStatus = MutableStateFlow("Bereit. Wählen Sie eine Aktion (z.B. 'Lesen').")
     val editStatus: StateFlow<String> = _editStatus.asStateFlow()
 
@@ -329,7 +335,13 @@ class NfcViewModel(
         _editTagType.value = parsed.tagType
         _editRawPayloadHex.value = parsed.rawPayloadHex
         _editAfi.value = parsed.afi ?: parsed.libraryData?.afi ?: ""
-        _editTransponderDetails.value = parsed.transponderDetails ?: Iso15693Parser.parseTransponderDetails(parsed.uid)
+        _editTransponderDetails.value = parsed.transponderDetails ?: Iso15693Parser.parseTransponderDetails(
+            uidHex = parsed.uid,
+            isAfiPasswordProtected = parsed.isAfiPasswordProtected,
+            isDataWriteProtected = parsed.isDataWriteProtected
+        )
+        _editAfiPasswordProtected.value = parsed.isAfiPasswordProtected ?: parsed.transponderDetails?.isAfiPasswordProtected
+        _editDataWriteProtected.value = parsed.isDataWriteProtected ?: parsed.transponderDetails?.isDataWriteProtected
         val rawBytes = try {
             if (parsed.rawPayloadHex.isNotBlank()) {
                 val len = parsed.rawPayloadHex.length
@@ -359,12 +371,21 @@ class NfcViewModel(
         )
     }
 
-    fun triggerTestEditScan(mockData: FinnishLibraryData? = null, mockUid: String? = null) {
+    fun triggerTestEditScan(
+        mockData: FinnishLibraryData? = null,
+        mockUid: String? = null,
+        mockAfiPasswordProtected: Boolean? = false,
+        mockDataWriteProtected: Boolean? = false
+    ) {
         val targetUid = mockUid ?: mockData?.uid?.takeIf { it.isNotBlank() }
         if (targetUid != null && targetUid.replace(":", "").replace(" ", "").trim().uppercase().startsWith("E2")) {
             val cleanTid = targetUid.replace(":", "").replace(" ", "").trim().uppercase()
             val tagType = Iso15693Parser.resolveIso15693TagType(cleanTid)
-            val details = Iso15693Parser.parseTransponderDetails(cleanTid)
+            val details = Iso15693Parser.parseTransponderDetails(
+                uidHex = cleanTid,
+                isAfiPasswordProtected = mockAfiPasswordProtected,
+                isDataWriteProtected = mockDataWriteProtected
+            )
             val parsed = ParsedNfcTag(
                 uid = cleanTid,
                 tagType = tagType,
@@ -374,7 +395,9 @@ class NfcViewModel(
                 libraryData = null,
                 afi = null,
                 identifierType = TagIdentifierType.EPC_GEN2_TID,
-                transponderDetails = details
+                transponderDetails = details,
+                isAfiPasswordProtected = mockAfiPasswordProtected,
+                isDataWriteProtected = mockDataWriteProtected
             )
             applyParsedEditTag(parsed)
             _editStatus.value = "Test-TID erfolgreich geladen ($cleanTid)"
@@ -401,7 +424,11 @@ class NfcViewModel(
         )
         val encoded = FinnishDataModelParser.encode(testData)
         val hex = Iso15693Parser.bytesToHex(encoded)
-        val transponderDetails = Iso15693Parser.parseTransponderDetails(resolvedUid)
+        val transponderDetails = Iso15693Parser.parseTransponderDetails(
+            uidHex = resolvedUid,
+            isAfiPasswordProtected = mockAfiPasswordProtected,
+            isDataWriteProtected = mockDataWriteProtected
+        )
         val parsed = ParsedNfcTag(
             uid = resolvedUid,
             tagType = Iso15693Parser.resolveIso15693TagType(resolvedUid),
@@ -411,7 +438,9 @@ class NfcViewModel(
             libraryData = testData,
             afi = testData.afi,
             identifierType = TagIdentifierType.ISO15693_UID,
-            transponderDetails = transponderDetails
+            transponderDetails = transponderDetails,
+            isAfiPasswordProtected = mockAfiPasswordProtected,
+            isDataWriteProtected = mockDataWriteProtected
         )
         applyParsedEditTag(parsed)
         _editStatus.value = "Test-Tag erfolgreich geladen (UID: $resolvedUid)"
@@ -424,7 +453,13 @@ class NfcViewModel(
         val hex = Iso15693Parser.bytesToHex(encoded)
         val parsed = FinnishDataModelParser.parse(data.uid.ifBlank { "E00401509999ABCD" }, encoded, afi = data.afi)
         val finalData = parsed ?: data
-        val transponderDetails = Iso15693Parser.parseTransponderDetails(finalData.uid)
+        val afiProtected = _editAfiPasswordProtected.value
+        val writeProtected = _editDataWriteProtected.value
+        val transponderDetails = Iso15693Parser.parseTransponderDetails(
+            uidHex = finalData.uid,
+            isAfiPasswordProtected = afiProtected,
+            isDataWriteProtected = writeProtected
+        )
         val parsedTag = ParsedNfcTag(
             uid = finalData.uid,
             tagType = Iso15693Parser.resolveIso15693TagType(finalData.uid),
@@ -434,7 +469,9 @@ class NfcViewModel(
             libraryData = finalData,
             afi = finalData.afi,
             identifierType = Iso15693Parser.resolveIdentifierType(finalData.uid),
-            transponderDetails = transponderDetails
+            transponderDetails = transponderDetails,
+            isAfiPasswordProtected = afiProtected,
+            isDataWriteProtected = writeProtected
         )
         applyParsedEditTag(parsedTag)
         _editStatus.value = "Test-Tag erfolgreich geschrieben!"

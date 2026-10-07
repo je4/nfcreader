@@ -134,19 +134,19 @@ class AppSettings(context: Context) {
 
         const val DEFAULT_TARGET_URL = "https://httpbin.org/get"
         const val DEFAULT_HTTP_METHOD = "GET"
-        const val DEFAULT_AFI_PASSWORD = "0"
-        const val DEFAULT_WRITE_PASSWORD = "0"
+        const val DEFAULT_AFI_PASSWORD = "00000000"
+        const val DEFAULT_WRITE_PASSWORD = "00000000"
 
         fun normalizeHex32(hex: String): String {
             val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "").uppercase()
-            return if (clean.isEmpty()) DEFAULT_AFI_PASSWORD else clean
+            return if (clean.isEmpty()) DEFAULT_AFI_PASSWORD else clean.padStart(8, '0')
         }
 
         fun isValidHex32(hex: String): Boolean {
             val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "")
             if (clean.isEmpty()) return true
-            if (clean.length > 8) return false
-            return clean.toLongOrNull(16) != null
+            if (clean.length != 8) return false
+            return clean.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
         }
 
         fun parseHex32ToLong(hex: String): Long {

@@ -247,6 +247,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
+                        android:enabled="false"
                         android:text="@string/settings_use_write_password_label"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp" />
@@ -257,12 +258,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
+                        android:enabled="false"
                         android:hint="@string/settings_write_password_label">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etSettingsWritePassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:enabled="false"
                             android:hint="@string/settings_write_password_hint"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary"

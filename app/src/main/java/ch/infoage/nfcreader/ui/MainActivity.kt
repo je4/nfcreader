@@ -410,6 +410,28 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 launch {
+                    viewModel.editAfiPasswordProtected.collectLatest { protected ->
+                        val text = when (protected) {
+                            true -> "Ein"
+                            false -> "Aus"
+                            null -> "-"
+                        }
+                        binding.tvEditAfiProtected.text = text
+                    }
+                }
+
+                launch {
+                    viewModel.editDataWriteProtected.collectLatest { protected ->
+                        val text = when (protected) {
+                            true -> "Ein"
+                            false -> "Aus"
+                            null -> "-"
+                        }
+                        binding.tvEditWriteProtected.text = text
+                    }
+                }
+
+                launch {
                     viewModel.editHexDump.collectLatest { hexDump ->
                         binding.tvEditHexDump.text = hexDump.ifBlank { "Keine Rohdaten verfügbar." }
                     }

@@ -58,7 +58,10 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchSettingsUseAfiPassword.isChecked = appSettings.useAfiPassword
         binding.etSettingsAfiPassword.setText(appSettings.afiPassword)
         binding.switchSettingsUseWritePassword.isChecked = appSettings.useWritePassword
+        binding.switchSettingsUseWritePassword.isEnabled = false
+        binding.tilSettingsWritePassword.isEnabled = false
         binding.etSettingsWritePassword.setText(appSettings.writePassword)
+        binding.etSettingsWritePassword.isEnabled = false
         binding.switchSettingsDebugMode.isChecked = appSettings.debugMode
     }
 
@@ -83,7 +86,7 @@ class SettingsActivity : AppCompatActivity() {
             binding.tilSettingsAfiPassword.error = null
         }
 
-        if (!AppSettings.isValidHex32(writePasswordInput)) {
+        if (binding.etSettingsWritePassword.isEnabled && !AppSettings.isValidHex32(writePasswordInput)) {
             binding.tilSettingsWritePassword.error = getString(R.string.settings_password_invalid_hex)
             hasError = true
         } else {
@@ -104,8 +107,12 @@ class SettingsActivity : AppCompatActivity() {
         appSettings.jwtKey = jwtKey
         appSettings.useAfiPassword = binding.switchSettingsUseAfiPassword.isChecked
         appSettings.afiPassword = afiPasswordInput
-        appSettings.useWritePassword = binding.switchSettingsUseWritePassword.isChecked
-        appSettings.writePassword = writePasswordInput
+        if (binding.switchSettingsUseWritePassword.isEnabled) {
+            appSettings.useWritePassword = binding.switchSettingsUseWritePassword.isChecked
+        }
+        if (binding.etSettingsWritePassword.isEnabled) {
+            appSettings.writePassword = writePasswordInput
+        }
         appSettings.debugMode = debugMode
         setResult(RESULT_OK)
         return true

@@ -340,4 +340,60 @@ class Iso15693ParserTest {
         org.junit.Assert.assertNotNull(transponderDetails.iso15693)
         assertEquals("NXP ICODE SLIX (ISO 15693)", transponderDetails.formattedSummary)
     }
+
+    @Test
+    fun testParseProtectionStatusFromResponse() {
+        // Bit 0 = 1: AFI Password Protected
+        val protectedResp = byteArrayOf(0x00, 0x01)
+        assertEquals(true, Iso15693Parser.parseProtectionStatusFromResponse(protectedResp))
+
+        // Bit 0 = 0: AFI Not Password Protected
+        val unprotectedResp = byteArrayOf(0x00, 0x00)
+        assertEquals(false, Iso15693Parser.parseProtectionStatusFromResponse(unprotectedResp))
+
+        // Bit 0 = 1, Bit 1 = 1 (AFI + EAS Protected)
+        val multiProtResp = byteArrayOf(0x00, 0x03)
+        assertEquals(true, Iso15693Parser.parseProtectionStatusFromResponse(multiProtResp))
+
+        // Bit 0 = 0, Bit 1 = 1 (Only EAS Protected)
+        val easOnlyResp = byteArrayOf(0x00, 0x02)
+        assertEquals(false, Iso15693Parser.parseProtectionStatusFromResponse(easOnlyResp))
+
+        // Error flag / invalid responses
+        assertEquals(null, Iso15693Parser.parseProtectionStatusFromResponse(byteArrayOf(0x01, 0x01)))
+        assertEquals(null, Iso15693Parser.parseProtectionStatusFromResponse(byteArrayOf(0x00)))
+        assertEquals(null, Iso15693Parser.parseProtectionStatusFromResponse(null))
+    }
+
+    @Test
+    fun testParseBlockSecurityStatusFromResponse() {
+        // All blocks unlocked (Bit 0 = 0 for all)
+        val allUnlockedResp = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00)
+        assertEquals(false, Iso15693Parser.parseBlockSecurityStatusFromResponse(allUnlockedResp))
+
+        // One block locked (Bit 0 = 1 for block 2)
+        val oneLockedResp = byteArrayOf(0x00, 0x00, 0x01, 0x00, 0x00)
+        assertEquals(true, Iso15693Parser.parseBlockSecurityStatusFromResponse(oneLockedResp))
+
+        // Multiple blocks locked
+        val multiLockedResp = byteArrayOf(0x00, 0x01, 0x01, 0x01)
+        assertEquals(true, Iso15693Parser.parseBlockSecurityStatusFromResponse(multiLockedResp))
+
+        // Error flag / invalid responses
+        assertEquals(null, Iso15693Parser.parseBlockSecurityStatusFromResponse(byteArrayOf(0x01, 0x00, 0x00)))
+        assertEquals(null, Iso15693Parser.parseBlockSecurityStatusFromResponse(byteArrayOf(0x00)))
+        assertEquals(null, Iso15693Parser.parseBlockSecurityStatusFromResponse(null))
+    }
+
+    @Test
+    fun testTransponderDetailsWithProtectionFlags() {
+        val details = Iso15693Parser.parseTransponderDetails(
+            uidHex = "E004015012345678",
+            isAfiPasswordProtected = true,
+            isDataWriteProtected = false
+        )
+        assertEquals(TagIdentifierType.ISO15693_UID, details.identifierType)
+        assertEquals(true, details.isAfiPasswordProtected)
+        assertEquals(false, details.isDataWriteProtected)
+    }
 }
