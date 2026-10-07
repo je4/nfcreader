@@ -63,6 +63,10 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_USE_WRITE_PASSWORD, false)
         set(value) = prefs.edit().putBoolean(KEY_USE_WRITE_PASSWORD, value).apply()
 
+    var selectedTab: String
+        get() = prefs.getString(KEY_SELECTED_TAB, DEFAULT_SELECTED_TAB) ?: DEFAULT_SELECTED_TAB
+        set(value) = prefs.edit().putString(KEY_SELECTED_TAB, value.trim()).apply()
+
     fun getAfiPasswordLong(): Long = parseHex32ToLong(afiPassword)
 
     fun getWritePasswordLong(): Long = parseHex32ToLong(writePassword)
@@ -131,11 +135,13 @@ class AppSettings(context: Context) {
         private const val KEY_WRITE_PASSWORD = "write_password"
         private const val KEY_USE_AFI_PASSWORD = "use_afi_password"
         private const val KEY_USE_WRITE_PASSWORD = "use_write_password"
+        private const val KEY_SELECTED_TAB = "selected_tab"
 
         const val DEFAULT_TARGET_URL = "https://httpbin.org/get"
         const val DEFAULT_HTTP_METHOD = "GET"
         const val DEFAULT_AFI_PASSWORD = "00000000"
         const val DEFAULT_WRITE_PASSWORD = "00000000"
+        const val DEFAULT_SELECTED_TAB = "SCAN"
 
         fun normalizeHex32(hex: String): String {
             val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "").uppercase()

@@ -61,6 +61,9 @@ class MainActivity : AppCompatActivity() {
 
         appSettings = AppSettings(this)
 
+        val initialTab = AppTab.values().find { it.name.equals(appSettings.selectedTab, ignoreCase = true) } ?: AppTab.SCAN
+        viewModel.setTab(initialTab)
+
         nfcManager = NfcReaderManager(this) { tag ->
             runOnUiThread {
                 viewModel.handleTagDiscovered(tag)
@@ -91,10 +94,12 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.nav_scan -> {
                     viewModel.setTab(AppTab.SCAN)
+                    appSettings.selectedTab = AppTab.SCAN.name
                     true
                 }
                 R.id.nav_edit -> {
                     viewModel.setTab(AppTab.EDIT)
+                    appSettings.selectedTab = AppTab.EDIT.name
                     true
                 }
                 else -> false
@@ -218,6 +223,7 @@ class MainActivity : AppCompatActivity() {
                 // Observe Tab Selection
                 launch {
                     viewModel.currentTab.collectLatest { tab ->
+                        appSettings.selectedTab = tab.name
                         val itemId = if (tab == AppTab.SCAN) R.id.nav_scan else R.id.nav_edit
                         if (binding.bottomNavigation.selectedItemId != itemId) {
                             binding.bottomNavigation.selectedItemId = itemId

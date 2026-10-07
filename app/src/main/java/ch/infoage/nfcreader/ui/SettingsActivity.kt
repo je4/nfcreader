@@ -18,10 +18,12 @@ package ch.infoage.nfcreader.ui
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import ch.infoage.nfcreader.R
 import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.databinding.ActivitySettingsBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -38,12 +40,36 @@ class SettingsActivity : AppCompatActivity() {
         setupToolbar()
         loadSettings()
         setupListeners()
+        setupBackHandler()
     }
 
     private fun setupToolbar() {
         binding.toolbarSettings.setNavigationOnClickListener {
-            saveCurrentSettings()
+            handleExit()
+        }
+    }
+
+    private fun setupBackHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleExit()
+            }
+        })
+    }
+
+    private fun handleExit() {
+        if (saveCurrentSettings()) {
+            Toast.makeText(this, R.string.settings_saved_toast, Toast.LENGTH_SHORT).show()
             finish()
+        } else {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.settings_invalid_dialog_title)
+                .setMessage(R.string.settings_invalid_dialog_message)
+                .setPositiveButton(R.string.settings_invalid_dialog_discard) { _, _ ->
+                    finish()
+                }
+                .setNegativeButton(R.string.settings_invalid_dialog_edit, null)
+                .show()
         }
     }
 

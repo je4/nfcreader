@@ -41,6 +41,10 @@
     <string name="debug_copied_to_clipboard">Debug-Ausgabe in Zwischenablage kopiert</string>
     <string name="settings_save">Speichern</string>
     <string name="settings_saved_toast">Einstellungen gespeichert</string>
+    <string name="settings_invalid_dialog_title">Ungültige Einstellungen</string>
+    <string name="settings_invalid_dialog_message">Die Einstellungen enthalten fehlerhafte Angaben und konnten nicht gespeichert werden. Möchten Sie die Änderungen verwerfen oder korrigieren?</string>
+    <string name="settings_invalid_dialog_discard">Verwerfen</string>
+    <string name="settings_invalid_dialog_edit">Korrigieren</string>
     <string name="action_settings">Einstellungen</string>
 
     <!-- Navigation -->
