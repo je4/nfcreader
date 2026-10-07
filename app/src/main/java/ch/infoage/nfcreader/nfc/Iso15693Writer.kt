@@ -18,10 +18,14 @@ package ch.infoage.nfcreader.nfc
 
 import android.nfc.Tag
 import android.nfc.tech.NfcV
+import android.util.Log
+import ch.infoage.nfcreader.data.local.AppSettings
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
 object Iso15693Writer {
+
+    private const val TAG = "Iso15693Writer"
 
     /**
      * Checks whether the given Tag supports ISO 15693 (NfcV).
@@ -49,7 +53,14 @@ object Iso15693Writer {
      * Writes Finnish Data Model blocks (including computed CRC) to an ISO 15693 tag.
      * Also updates AFI if specified.
      */
-    fun writeFinnishData(tag: Tag, data: FinnishLibraryData): Result<ParsedNfcTag> {
+    fun writeFinnishData(
+        tag: Tag,
+        data: FinnishLibraryData,
+        useAfiPassword: Boolean = false,
+        afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD,
+        useWritePassword: Boolean = false,
+        writePasswordHex: String = AppSettings.DEFAULT_WRITE_PASSWORD
+    ): Result<ParsedNfcTag> {
         if (!isIso15693(tag)) {
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
@@ -80,7 +91,10 @@ object Iso15693Writer {
                     null
                 }
                 if (afiByte != null) {
-                    writeAfiInternal(nfcv, uid, afiByte)
+                    val afiSuccess = writeAfiInternal(nfcv, uid, afiByte, useAfiPassword, afiPasswordHex)
+                    if (!afiSuccess) {
+                        Log.w(TAG, "AFI-Schreibbefehl konnte nicht ausgeführt werden.")
+                    }
                 }
             }
 
@@ -98,9 +112,134 @@ object Iso15693Writer {
     }
 
     /**
+     * Toggles the AFI of an ISO 15693 tag:
+     * 1) Reads current AFI from the tag via System Information
+     * 2) Writes the toggled AFI (C2 -> 07, otherwise -> C2)
+     * 3) Reads the entire tag data and returns [ParsedNfcTag]
+     */
+    fun toggleAfi(
+        tag: Tag,
+        useAfiPassword: Boolean = false,
+        afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
+    ): Result<ParsedNfcTag> {
+        if (!isIso15693(tag)) {
+            return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
+        }
+
+        val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
+        val uid = tag.id
+
+        return try {
+            nfcv.connect()
+
+            // 1. Read current AFI directly from the connected tag
+            val currentAfi = readAfiInternal(nfcv, uid)
+
+            // Determine target AFI: C2 (Ausgeliehen) -> 07 (Gesichert), otherwise -> C2
+            val targetAfiStr = if (currentAfi?.trim()?.uppercase() == "C2") "07" else "C2"
+            val targetAfiByte = targetAfiStr.toInt(16).toByte()
+
+            // 2. Write toggled AFI to tag
+            val writeSuccess = writeAfiInternal(nfcv, uid, targetAfiByte, useAfiPassword, afiPasswordHex)
+            if (!writeSuccess) {
+                throw IllegalStateException("AFI-Schreibbefehl wurde vom Tag nicht akzeptiert.")
+            }
+
+            nfcv.close()
+
+            // 3. Read tag completely as if 'Lesen' was pressed
+            val parsed = Iso15693Parser.parseTag(tag)
+            Result.success(parsed)
+        } catch (e: Exception) {
+            try {
+                nfcv.close()
+            } catch (ignored: Exception) {}
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Deactivates / resets the AFI password protection on an ISO 15693 tag:
+     * 1) Authenticates using the configured AFI password or default 00000000
+     * 2) Resets the AFI password on the chip to default 00000000
+     * 3) Re-reads the complete tag and returns [ParsedNfcTag]
+     */
+    fun disableAfiPassword(
+        tag: Tag,
+        afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
+    ): Result<ParsedNfcTag> {
+        if (!isIso15693(tag)) {
+            return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
+        }
+
+        val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
+        val uid = tag.id
+
+        return try {
+            nfcv.connect()
+
+            // 1. Authenticate with current configured password or default 00000000
+            var authSuccess = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+            if (!authSuccess && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+                authSuccess = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            }
+
+            // 2. Reset password to default 00000000
+            writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+
+            nfcv.close()
+
+            // 3. Re-read tag completely
+            val parsed = Iso15693Parser.parseTag(tag)
+            Result.success(parsed)
+        } catch (e: Exception) {
+            try {
+                nfcv.close()
+            } catch (ignored: Exception) {}
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Reads AFI byte from an open NfcV connection using Get System Information (0x2B).
+     */
+    fun readAfiInternal(nfcv: NfcV, uid: ByteArray): String? {
+        // 1. Try addressed mode: [Flags: 0x22, Cmd: 0x2B, UID (8 Bytes)]
+        try {
+            val sysInfoCmd = ByteArray(2 + uid.size).apply {
+                this[0] = 0x22.toByte() // Flag: High data rate | Addressed
+                this[1] = 0x2B.toByte() // Command: Get System Information
+                System.arraycopy(uid, 0, this, 2, uid.size)
+            }
+            val sysInfoResp = nfcv.transceive(sysInfoCmd)
+            if (sysInfoResp != null && sysInfoResp.isNotEmpty() && sysInfoResp[0] == 0x00.toByte()) {
+                val afi = Iso15693Parser.parseAfiFromSystemInfo(sysInfoResp)
+                if (afi != null) return afi
+            }
+        } catch (ignored: Exception) {}
+
+        // 2. Try unaddressed mode as fallback: [Flags: 0x02, Cmd: 0x2B]
+        try {
+            val unaddressedSysInfoCmd = byteArrayOf(0x02, 0x2B)
+            val unaddressedResp = nfcv.transceive(unaddressedSysInfoCmd)
+            if (unaddressedResp != null && unaddressedResp.isNotEmpty() && unaddressedResp[0] == 0x00.toByte()) {
+                val afi = Iso15693Parser.parseAfiFromSystemInfo(unaddressedResp)
+                if (afi != null) return afi
+            }
+        } catch (ignored: Exception) {}
+
+        return null
+    }
+
+    /**
      * Writes AFI value to an ISO 15693 tag.
      */
-    fun writeAfi(tag: Tag, afiHex: String): Result<String> {
+    fun writeAfi(
+        tag: Tag,
+        afiHex: String,
+        useAfiPassword: Boolean = false,
+        afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
+    ): Result<String> {
         if (!isIso15693(tag)) {
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
@@ -116,7 +255,7 @@ object Iso15693Writer {
 
         return try {
             nfcv.connect()
-            val success = writeAfiInternal(nfcv, uid, afiByte)
+            val success = writeAfiInternal(nfcv, uid, afiByte, useAfiPassword, afiPasswordHex)
             nfcv.close()
             if (success) {
                 Result.success(String.format("%02X", afiByte.toInt() and 0xFF))
@@ -168,9 +307,54 @@ object Iso15693Writer {
     }
 
     /**
-     * Writes AFI byte using ISO 15693 Write AFI command (0x27).
+     * Writes AFI byte using ISO 15693 Write AFI command (0x27) with optional password authentication
+     * and protection enablement.
      */
-    private fun writeAfiInternal(nfcv: NfcV, uid: ByteArray, afiByte: Byte): Boolean {
+    fun writeAfiInternal(
+        nfcv: NfcV,
+        uid: ByteArray,
+        afiByte: Byte,
+        useAfiPassword: Boolean = false,
+        afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
+    ): Boolean {
+        if (useAfiPassword) {
+            // 1. Authenticate with configured password first
+            var authSuccess = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+            if (!authSuccess && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+                // If tag was not configured with this password yet, try authenticating with default 00000000
+                val defaultAuth = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+                if (defaultAuth) {
+                    writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
+                    enableAfiProtectionInternal(nfcv, uid)
+                    authSuccess = true
+                }
+            }
+
+            // 2. Try writing AFI
+            val writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
+            if (writeSuccess) {
+                // If tag was unprotected previously, ensure password & protection are applied
+                if (afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+                    writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
+                    enableAfiProtectionInternal(nfcv, uid)
+                }
+                return true
+            }
+
+            // 3. If direct write failed, re-authenticate and retry
+            if (!authSuccess) {
+                authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+            }
+            return writeAfiDirect(nfcv, uid, afiByte)
+        } else {
+            return writeAfiDirect(nfcv, uid, afiByte)
+        }
+    }
+
+    /**
+     * Performs standard ISO 15693 Write AFI (0x27) in addressed and unaddressed modes.
+     */
+    fun writeAfiDirect(nfcv: NfcV, uid: ByteArray, afiByte: Byte): Boolean {
         // 1. Try addressed mode: [Flags: 0x22, Cmd: 0x27, UID (8 Bytes), AFI]
         val addressedCmd = ByteArray(1 + 1 + uid.size + 1).apply {
             this[0] = 0x22.toByte() // High data rate | Addressed
@@ -192,6 +376,159 @@ object Iso15693Writer {
             val unaddressedResp = nfcv.transceive(unaddressedCmd)
             unaddressedResp != null && unaddressedResp.isNotEmpty() && unaddressedResp[0] == 0x00.toByte()
         } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Authenticates for EAS/AFI (Identifier 0x10) on NXP ICODE tags using GET RANDOM NUMBER (0xB2)
+     * and SET PASSWORD (0xB3).
+     */
+    fun authenticateAfiPassword(nfcv: NfcV, uid: ByteArray, passwordHex: String): Boolean {
+        val pwdBytes = AppSettings.hex32ToBytes(passwordHex, lsbFirst = false)
+        val pwdBytesLsb = AppSettings.hex32ToBytes(passwordHex, lsbFirst = true)
+
+        // 1. Get Random Number (0xB2)
+        val randomResp = getRandomNumber(nfcv, uid) ?: return false
+        if (randomResp.size < 3 || randomResp[0] != 0x00.toByte()) return false
+
+        val rn0 = randomResp[1]
+        val rn1 = randomResp[2]
+
+        // 2. Try Set Password (0xB3) for EAS/AFI (0x10) with standard byte order
+        val xorPwd = byteArrayOf(
+            (pwdBytes[0].toInt() xor rn0.toInt()).toByte(),
+            (pwdBytes[1].toInt() xor rn1.toInt()).toByte(),
+            (pwdBytes[2].toInt() xor rn0.toInt()).toByte(),
+            (pwdBytes[3].toInt() xor rn1.toInt()).toByte()
+        )
+        if (sendSetPassword(nfcv, uid, 0x10.toByte(), xorPwd)) {
+            return true
+        }
+
+        // Try LSB order as fallback
+        val xorPwdLsb = byteArrayOf(
+            (pwdBytesLsb[0].toInt() xor rn0.toInt()).toByte(),
+            (pwdBytesLsb[1].toInt() xor rn1.toInt()).toByte(),
+            (pwdBytesLsb[2].toInt() xor rn0.toInt()).toByte(),
+            (pwdBytesLsb[3].toInt() xor rn1.toInt()).toByte()
+        )
+        return sendSetPassword(nfcv, uid, 0x10.toByte(), xorPwdLsb)
+    }
+
+    /**
+     * Queries a 16-bit random number from an NXP ICODE tag (Command 0xB2).
+     */
+    fun getRandomNumber(nfcv: NfcV, uid: ByteArray): ByteArray? {
+        val addressedCmd = ByteArray(3 + uid.size).apply {
+            this[0] = 0x22.toByte() // High data rate | Addressed
+            this[1] = 0xB2.toByte() // GET RANDOM NUMBER
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+        }
+        try {
+            val resp = nfcv.transceive(addressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return resp
+            }
+        } catch (ignored: Exception) {}
+
+        val unaddressedCmd = byteArrayOf(0x02, 0xB2.toByte(), 0x04)
+        return try {
+            val resp = nfcv.transceive(unaddressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) resp else null
+        } catch (ignored: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Sends the SET PASSWORD (0xB3) command.
+     */
+    fun sendSetPassword(nfcv: NfcV, uid: ByteArray, pwdId: Byte, xorPwd: ByteArray): Boolean {
+        val addressedCmd = ByteArray(3 + uid.size + 1 + xorPwd.size).apply {
+            this[0] = 0x22.toByte() // High data rate | Addressed
+            this[1] = 0xB3.toByte() // SET PASSWORD
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+            this[3 + uid.size] = pwdId
+            System.arraycopy(xorPwd, 0, this, 4 + uid.size, xorPwd.size)
+        }
+        try {
+            val resp = nfcv.transceive(addressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        val unaddressedCmd = ByteArray(3 + 1 + xorPwd.size).apply {
+            this[0] = 0x02.toByte()
+            this[1] = 0xB3.toByte()
+            this[2] = 0x04.toByte()
+            this[3] = pwdId
+            System.arraycopy(xorPwd, 0, this, 4, xorPwd.size)
+        }
+        return try {
+            val resp = nfcv.transceive(unaddressedCmd)
+            resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
+        } catch (ignored: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Writes a new 32-bit password to the tag using WRITE PASSWORD (0xB4).
+     */
+    fun writeAfiPasswordInternal(nfcv: NfcV, uid: ByteArray, newPasswordHex: String): Boolean {
+        val pwdBytes = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = false)
+        val pwdBytesLsb = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = true)
+
+        val addressedCmd = ByteArray(3 + uid.size + 1 + 4).apply {
+            this[0] = 0x22.toByte() // High data rate | Addressed
+            this[1] = 0xB4.toByte() // WRITE PASSWORD
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+            this[3 + uid.size] = 0x10.toByte() // EAS/AFI
+            System.arraycopy(pwdBytes, 0, this, 4 + uid.size, 4)
+        }
+        try {
+            val resp = nfcv.transceive(addressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        System.arraycopy(pwdBytesLsb, 0, addressedCmd, 4 + uid.size, 4)
+        return try {
+            val resp = nfcv.transceive(addressedCmd)
+            resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
+        } catch (ignored: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Enables password protection for AFI on NXP ICODE tags using PASSWORD PROTECT EAS/AFI (0xA6).
+     */
+    fun enableAfiProtectionInternal(nfcv: NfcV, uid: ByteArray): Boolean {
+        val addressedCmd = ByteArray(3 + uid.size).apply {
+            this[0] = 0x62.toByte() // High data rate | Addressed | Option flag
+            this[1] = 0xA6.toByte() // PASSWORD PROTECT EAS/AFI
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+        }
+        try {
+            val resp = nfcv.transceive(addressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        val unaddressedCmd = byteArrayOf(0x42.toByte(), 0xA6.toByte(), 0x04.toByte())
+        return try {
+            val resp = nfcv.transceive(unaddressedCmd)
+            resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
+        } catch (ignored: Exception) {
             false
         }
     }

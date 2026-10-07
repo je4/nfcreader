@@ -45,7 +45,8 @@ enum class EditAction {
     NONE,
     READ,
     WRITE,
-    TOGGLE_AFI
+    TOGGLE_AFI,
+    DISABLE_AFI_PASSWORD
 }
 
 enum class EditStatusType {
@@ -229,9 +230,13 @@ class NfcViewModel(
 
     fun onEditToggleAfiClicked() {
         _pendingEditAction.value = EditAction.TOGGLE_AFI
-        val currentAfi = _editAfi.value.trim().uppercase()
-        val targetAfi = if (currentAfi == "C2") "07" else "C2"
-        _editStatus.value = "Halten Sie ein Tag an zum Umschalten von AFI ($currentAfi -> $targetAfi)..."
+        _editStatus.value = "Halten Sie ein ISO 15693 Tag an zum AFI-Umschalten..."
+        _editStatusType.value = EditStatusType.PENDING
+    }
+
+    fun onEditDisableAfiPasswordClicked() {
+        _pendingEditAction.value = EditAction.DISABLE_AFI_PASSWORD
+        _editStatus.value = "Halten Sie ein ISO 15693 Tag an zum Deaktivieren des AFI-Passworts..."
         _editStatusType.value = EditStatusType.PENDING
     }
 
@@ -281,7 +286,14 @@ class NfcViewModel(
                     return
                 }
 
-                val writeResult = Iso15693Writer.writeFinnishData(tag, toWrite)
+                val writeResult = Iso15693Writer.writeFinnishData(
+                    tag = tag,
+                    data = toWrite,
+                    useAfiPassword = _useAfiPassword.value,
+                    afiPasswordHex = _afiPassword.value,
+                    useWritePassword = _useWritePassword.value,
+                    writePasswordHex = _writePassword.value
+                )
                 if (writeResult.isSuccess) {
                     val parsed = writeResult.getOrThrow()
                     applyParsedEditTag(parsed)
@@ -295,18 +307,35 @@ class NfcViewModel(
                 pendingWriteData = null
             }
             EditAction.TOGGLE_AFI -> {
-                val currentAfi = _editAfi.value.trim().uppercase()
-                val targetAfi = if (currentAfi == "C2") "07" else "C2"
-
-                val afiResult = Iso15693Writer.writeAfi(tag, targetAfi)
-                if (afiResult.isSuccess) {
-                    val newAfi = afiResult.getOrThrow()
-                    _editAfi.value = newAfi
-                    _editLibraryData.value = _editLibraryData.value?.copy(afi = newAfi)
-                    _editStatus.value = "AFI Status erfolgreich auf $newAfi gesetzt!"
+                val toggleResult = Iso15693Writer.toggleAfi(
+                    tag = tag,
+                    useAfiPassword = _useAfiPassword.value,
+                    afiPasswordHex = _afiPassword.value
+                )
+                if (toggleResult.isSuccess) {
+                    val parsed = toggleResult.getOrThrow()
+                    applyParsedEditTag(parsed)
+                    val newAfi = parsed.afi ?: _editAfi.value
+                    _editStatus.value = "AFI erfolgreich auf $newAfi umgeschaltet und Tag gelesen!"
                     _editStatusType.value = EditStatusType.SUCCESS
                 } else {
-                    _editStatus.value = "Fehler beim Setzen von AFI: ${afiResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                    _editStatus.value = "Fehler beim Umschalten von AFI: ${toggleResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                    _editStatusType.value = EditStatusType.ERROR
+                }
+                _pendingEditAction.value = EditAction.NONE
+            }
+            EditAction.DISABLE_AFI_PASSWORD -> {
+                val disableResult = Iso15693Writer.disableAfiPassword(
+                    tag = tag,
+                    afiPasswordHex = _afiPassword.value
+                )
+                if (disableResult.isSuccess) {
+                    val parsed = disableResult.getOrThrow()
+                    applyParsedEditTag(parsed)
+                    _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
+                    _editStatusType.value = EditStatusType.SUCCESS
+                } else {
+                    _editStatus.value = "Fehler beim Deaktivieren des AFI-Passworts: ${disableResult.exceptionOrNull()?.message ?: "Unbekannt"}"
                     _editStatusType.value = EditStatusType.ERROR
                 }
                 _pendingEditAction.value = EditAction.NONE
@@ -483,12 +512,58 @@ class NfcViewModel(
     fun triggerTestEditToggleAfi() {
         val currentAfi = _editAfi.value.trim().uppercase()
         val targetAfi = if (currentAfi == "C2") "07" else "C2"
-        _editAfi.value = targetAfi
         val currentData = _editLibraryData.value
-        if (currentData != null) {
-            _editLibraryData.value = currentData.copy(afi = targetAfi)
+        val updatedData = currentData?.copy(afi = targetAfi) ?: FinnishLibraryData(
+            uid = _editUid.value.ifBlank { "E004015012345678" },
+            version = 1,
+            usageType = 1,
+            parts = 1,
+            partNo = 1,
+            itemId = "",
+            country = "",
+            isil = "",
+            isCrcValid = false,
+            isTagEmpty = true,
+            afi = targetAfi
+        )
+        val currentUid = _editUid.value.ifBlank { updatedData.uid.ifBlank { "E004015012345678" } }
+        val tagType = _editTagType.value.ifBlank { Iso15693Parser.resolveIso15693TagType(currentUid) }
+        val encodedBytes = try {
+            FinnishDataModelParser.encode(updatedData)
+        } catch (e: Exception) {
+            null
         }
-        _editStatus.value = "AFI Status erfolgreich auf $targetAfi gesetzt!"
+        val rawPayloadHex = if (encodedBytes != null) Iso15693Parser.bytesToHex(encodedBytes) else _editRawPayloadHex.value
+        val parsedTag = ParsedNfcTag(
+            uid = currentUid,
+            tagType = tagType,
+            rawPayloadHex = rawPayloadHex,
+            textContent = updatedData.toFormattedString(),
+            fullSummary = "UID: $currentUid | AFI: $targetAfi",
+            libraryData = updatedData,
+            afi = targetAfi,
+            identifierType = Iso15693Parser.resolveIdentifierType(currentUid),
+            transponderDetails = _editTransponderDetails.value ?: Iso15693Parser.parseTransponderDetails(
+                uidHex = currentUid,
+                isAfiPasswordProtected = _editAfiPasswordProtected.value,
+                isDataWriteProtected = _editDataWriteProtected.value
+            ),
+            isAfiPasswordProtected = _editAfiPasswordProtected.value,
+            isDataWriteProtected = _editDataWriteProtected.value
+        )
+        applyParsedEditTag(parsedTag)
+        _editStatus.value = "AFI erfolgreich auf $targetAfi umgeschaltet und Tag gelesen!"
+        _editStatusType.value = EditStatusType.SUCCESS
+        _pendingEditAction.value = EditAction.NONE
+    }
+
+    fun triggerTestEditDisableAfiPassword() {
+        _editAfiPasswordProtected.value = false
+        val currentDetails = _editTransponderDetails.value
+        if (currentDetails != null) {
+            _editTransponderDetails.value = currentDetails.copy(isAfiPasswordProtected = false)
+        }
+        _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
         _editStatusType.value = EditStatusType.SUCCESS
         _pendingEditAction.value = EditAction.NONE
     }

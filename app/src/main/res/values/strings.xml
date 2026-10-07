@@ -51,14 +51,17 @@
     <string name="btn_edit_read">Lesen</string>
     <string name="btn_edit_write">Schreiben</string>
     <string name="btn_edit_toggle_afi">AFI umschalten</string>
+    <string name="btn_edit_disable_afi_password">AFI-Passwort deaktivieren</string>
     <string name="btn_edit_test">Test-Tag</string>
     <string name="edit_status_ready">Bereit. Wählen Sie eine Aktion (z.B. \'Lesen\').</string>
     <string name="edit_status_reading">Halten Sie ein ISO 15693 Tag an die Rückseite zum Lesen...</string>
     <string name="edit_status_writing">Halten Sie ein ISO 15693 Tag an die Rückseite zum Schreiben...</string>
     <string name="edit_status_toggling_afi">Halten Sie ein ISO 15693 Tag an zum AFI-Umschalten...</string>
+    <string name="edit_status_disabling_afi_password">Halten Sie ein ISO 15693 Tag an zum Deaktivieren des AFI-Passworts...</string>
     <string name="edit_status_read_success">Tag erfolgreich gelesen: %1$s</string>
     <string name="edit_status_write_success">Tag erfolgreich geschrieben!</string>
     <string name="edit_status_afi_success">AFI Status geändert auf %1$s</string>
+    <string name="edit_status_disable_afi_password_success">AFI-Passwort erfolgreich entfernt / deaktiviert!</string>
     <string name="edit_status_unsupported_tag">Nur ISO 15693 (NfcV) Tags werden im Edit-Modus unterstützt.</string>
     <string name="edit_inspector_title">Transponder-Informationen</string>
     <string name="edit_library_data_title">Bibliotheksdaten (ISO 28560)</string>

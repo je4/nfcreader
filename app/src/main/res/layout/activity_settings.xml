@@ -227,7 +227,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:hint="@string/settings_afi_password_label">
+                        android:hint="@string/settings_afi_password_label"
+                        app:endIconMode="password_toggle">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etSettingsAfiPassword"
@@ -236,7 +237,7 @@
                             android:hint="@string/settings_afi_password_hint"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary"
-                            android:inputType="textCapCharacters|textNoSuggestions"
+                            android:inputType="textPassword"
                             android:digits="0123456789abcdefABCDEFxX"
                             android:maxLength="10"
                             android:textSize="14sp" />
@@ -259,7 +260,8 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:enabled="false"
-                        android:hint="@string/settings_write_password_label">
+                        android:hint="@string/settings_write_password_label"
+                        app:endIconMode="password_toggle">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etSettingsWritePassword"
@@ -269,7 +271,7 @@
                             android:hint="@string/settings_write_password_hint"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary"
-                            android:inputType="textCapCharacters|textNoSuggestions"
+                            android:inputType="textPassword"
                             android:digits="0123456789abcdefABCDEFxX"
                             android:maxLength="10"
                             android:textSize="14sp" />

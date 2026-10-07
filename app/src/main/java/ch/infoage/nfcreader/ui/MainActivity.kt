@@ -141,6 +141,10 @@ class MainActivity : AppCompatActivity() {
             viewModel.onEditToggleAfiClicked()
         }
 
+        binding.btnEditDisableAfiPassword.setOnClickListener {
+            viewModel.onEditDisableAfiPasswordClicked()
+        }
+
         var testTagIndex = 0
         val testTags = listOf(
             null, // ISO 15693 Finnish Library Tag (NXP ICODE SLIX)
@@ -410,6 +414,12 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 launch {
+                    viewModel.useAfiPassword.collectLatest {
+                        updateDisableAfiPasswordButtonVisibility()
+                    }
+                }
+
+                launch {
                     viewModel.editAfiPasswordProtected.collectLatest { protected ->
                         val text = when (protected) {
                             true -> "Ein"
@@ -417,6 +427,7 @@ class MainActivity : AppCompatActivity() {
                             null -> "n/v"
                         }
                         binding.tvEditAfiProtected.text = text
+                        updateDisableAfiPasswordButtonVisibility()
                     }
                 }
 
@@ -505,8 +516,16 @@ class MainActivity : AppCompatActivity() {
         viewModel.setWritePassword(appSettings.writePassword)
         viewModel.setUseWritePassword(appSettings.useWritePassword)
 
+        updateDisableAfiPasswordButtonVisibility()
         updateNfcStatus()
         updateNfcReaderMode()
+    }
+
+    private fun updateDisableAfiPasswordButtonVisibility() {
+        val useAfi = viewModel.useAfiPassword.value
+        val afiProtected = viewModel.editAfiPasswordProtected.value
+        val shouldShow = useAfi && (afiProtected == true || afiProtected == null)
+        binding.btnEditDisableAfiPassword.visibility = if (shouldShow) View.VISIBLE else View.GONE
     }
 
     override fun onPause() {

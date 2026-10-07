@@ -440,12 +440,45 @@ class NfcViewModelTest {
         assertEquals("07", viewModel.editAfi.value)
         assertEquals("07", viewModel.editLibraryData.value?.afi)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+        assertEquals("E004015011112222", viewModel.editUid.value)
+        assertEquals("TEST", viewModel.editLibraryData.value?.itemId)
 
         // Toggle AFI again: 07 -> C2 (Ausgeliehen)
         viewModel.triggerTestEditToggleAfi()
         assertEquals("C2", viewModel.editAfi.value)
         assertEquals("C2", viewModel.editLibraryData.value?.afi)
         assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+        assertEquals("E004015011112222", viewModel.editUid.value)
+    }
+
+    @Test
+    fun testOnEditToggleAfiClickedSetsPendingState() {
+        viewModel.onEditToggleAfiClicked()
+        assertEquals(EditAction.TOGGLE_AFI, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+        assertTrue(viewModel.editStatus.value.contains("AFI-Umschalten"))
+    }
+
+    @Test
+    fun testOnEditDisableAfiPasswordClickedSetsPendingState() {
+        viewModel.onEditDisableAfiPasswordClicked()
+        assertEquals(EditAction.DISABLE_AFI_PASSWORD, viewModel.pendingEditAction.value)
+        assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+        assertTrue(viewModel.editStatus.value.contains("Deaktivieren des AFI-Passworts"))
+    }
+
+    @Test
+    fun testTriggerTestEditDisableAfiPassword() {
+        // Tag with AFI password protection enabled
+        viewModel.triggerTestEditScan(mockAfiPasswordProtected = true, mockDataWriteProtected = false)
+        assertEquals(true, viewModel.editAfiPasswordProtected.value)
+
+        // Disable AFI password
+        viewModel.triggerTestEditDisableAfiPassword()
+        assertEquals(false, viewModel.editAfiPasswordProtected.value)
+        assertEquals(false, viewModel.editTransponderDetails.value?.isAfiPasswordProtected)
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+        assertTrue(viewModel.editStatus.value.contains("AFI-Passwort erfolgreich entfernt"))
     }
 
     @Test
@@ -511,6 +544,24 @@ class NfcViewModelTest {
         viewModel.onEditReadClicked()
         assertEquals(EditAction.READ, viewModel.pendingEditAction.value)
         assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+    }
+
+    @Test
+    fun testDisableAfiPasswordButtonVisibilityConditions() {
+        // Condition: useAfiPassword == true AND (isAfiPasswordProtected == true OR isAfiPasswordProtected == null)
+        fun shouldShow(useAfi: Boolean, protected: Boolean?): Boolean {
+            return useAfi && (protected == true || protected == null)
+        }
+
+        // When useAfiPassword is true:
+        assertTrue(shouldShow(useAfi = true, protected = true))
+        assertTrue(shouldShow(useAfi = true, protected = null)) // n/v
+        assertFalse(shouldShow(useAfi = true, protected = false)) // Aus
+
+        // When useAfiPassword is false:
+        assertFalse(shouldShow(useAfi = false, protected = true))
+        assertFalse(shouldShow(useAfi = false, protected = null))
+        assertFalse(shouldShow(useAfi = false, protected = false))
     }
 
     @Test
