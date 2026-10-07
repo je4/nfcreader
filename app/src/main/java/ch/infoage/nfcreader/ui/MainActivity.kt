@@ -332,25 +332,35 @@ class MainActivity : AppCompatActivity() {
                                     binding.layoutEditFlags.visibility = View.VISIBLE
                                     binding.layoutEditSerial.visibility = View.VISIBLE
 
-                                    val mfgText = "${epc.manufacturerName} (MDID: ${epc.mdidInt} / 0x${epc.mdidHex})"
+                                    val mfgText = if (epc.manufacturerName.isNotBlank() && epc.manufacturerName != "Unbekannt" && !epc.manufacturerName.startsWith("MDID")) {
+                                        "${epc.manufacturerName} (MDID: ${epc.mdidInt} / 0x${epc.mdidHex})"
+                                    } else {
+                                        "MDID: ${epc.mdidInt} (0x${epc.mdidHex} / binär: ${epc.mdidBinary})"
+                                    }
                                     binding.tvEditManufacturer.text = mfgText
 
-                                    val modelText = buildString {
-                                        append(epc.modelName ?: "Unbekannt")
+                                    val modelText = if (epc.modelName != null) {
                                         if (epc.tmnHex.isNotEmpty()) {
-                                            append(" (TMN: 0x").append(epc.tmnHex).append(")")
+                                            "${epc.modelName} (TMN: 0x${epc.tmnHex})"
+                                        } else {
+                                            epc.modelName
                                         }
+                                    } else if (epc.tmnHex.isNotEmpty()) {
+                                        "TMN: 0x${epc.tmnHex}"
+                                    } else {
+                                        "-"
                                     }
                                     binding.tvEditModel.text = modelText
 
                                     val flagsText = buildString {
-                                        append("XTID: ").append(if (epc.hasXtid) "Ja" else "Nein")
+                                        append("Class: ").append(epc.allocationClass)
+                                        append(" | XTID: ").append(if (epc.hasXtid) "Ja" else "Nein")
                                         append(" | Sec: ").append(if (epc.hasSecurity) "Ja" else "Nein")
                                         append(" | File: ").append(if (epc.hasFileOpen) "Ja" else "Nein")
                                     }
                                     binding.tvEditFlags.text = flagsText
 
-                                    binding.tvEditSerial.text = epc.serialNumberHex ?: "-"
+                                    binding.tvEditSerial.text = epc.serialNumberHex ?: "(keine / Short TID)"
                                 }
                                 iso != null -> {
                                     binding.layoutEditManufacturer.visibility = View.VISIBLE

@@ -586,12 +586,18 @@ object Iso15693Parser {
                     tmnHex.isNotEmpty() -> "${designer.manufacturer} (EPC Gen2, TMN: $tmnHex)"
                     else -> "${designer.manufacturer} (EPC Gen2)"
                 }
+            } else {
+                val mdidFormattedHex = String.format("%03X", mdid9Bit)
+                return when {
+                    tmnHex.isNotEmpty() -> "EPC Gen2 (MDID: $mdid9Bit / 0x$mdidFormattedHex, TMN: 0x$tmnHex)"
+                    else -> "EPC Gen2 (MDID: $mdid9Bit / 0x$mdidFormattedHex)"
+                }
             }
         }
 
         return when {
-            tmnHex.isNotEmpty() -> "EPC Gen2 (MDID: $mdidHex, TMN: $tmnHex)"
-            else -> "EPC Gen2 (MDID: $mdidHex)"
+            tmnHex.isNotEmpty() -> "EPC Gen2 (Header: $mdidHex, TMN: 0x$tmnHex)"
+            else -> "EPC Gen2 (Header: $mdidHex)"
         }
     }
 

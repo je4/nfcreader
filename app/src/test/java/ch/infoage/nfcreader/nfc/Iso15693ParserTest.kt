@@ -139,9 +139,9 @@ class Iso15693ParserTest {
         // Known manufacturer without chip TMN
         assertEquals("Impinj (EPC Gen2)", Iso15693Parser.resolveIso15693TagType("E2801"))
 
-        // Unknown manufacturer in EPC
-        assertEquals("EPC Gen2 (MDID: FFF, TMN: 999)", Iso15693Parser.resolveIso15693TagType("E2FFF99912345678"))
-        assertEquals("EPC Gen2 (MDID: FFF)", Iso15693Parser.resolveIso15693TagType("E2FFF"))
+        // Unknown manufacturer in EPC (MDID 0xFFF & 0x1FF = 511 / 0x1FF)
+        assertEquals("EPC Gen2 (MDID: 511 / 0x1FF, TMN: 0x999)", Iso15693Parser.resolveIso15693TagType("E2FFF99912345678"))
+        assertEquals("EPC Gen2 (MDID: 511 / 0x1FF)", Iso15693Parser.resolveIso15693TagType("E2FFF"))
     }
 
     @Test
@@ -234,6 +234,21 @@ class Iso15693ParserTest {
         assertEquals(11, em?.mdidInt)
         assertEquals("EM Microelectronic", em?.manufacturerName)
         assertEquals("EM4425", em?.modelName)
+
+        // Unknown manufacturer / custom TID (Header: 0x8FF -> Flags 100b + MDID 255 (0x0FF), TMN: 0x999, Serial: AABBCCDD)
+        val unknown = Iso15693Parser.parseEpcTidDetails("E28FF999AABBCCDD")
+        org.junit.Assert.assertNotNull(unknown)
+        assertEquals("E2", unknown?.allocationClass)
+        assertEquals(true, unknown?.hasXtid)
+        assertEquals(false, unknown?.hasSecurity)
+        assertEquals(false, unknown?.hasFileOpen)
+        assertEquals(255, unknown?.mdidInt)
+        assertEquals("0FF", unknown?.mdidHex)
+        assertEquals("011111111", unknown?.mdidBinary)
+        assertEquals("MDID 255 (0x0FF)", unknown?.manufacturerName)
+        assertEquals("999", unknown?.tmnHex)
+        assertEquals(null, unknown?.modelName)
+        assertEquals("AABBCCDD", unknown?.serialNumberHex)
     }
 
     @Test
