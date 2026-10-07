@@ -70,8 +70,8 @@
     <string name="edit_field_flags">Flags (XTID/Sec/File)</string>
     <string name="edit_field_serial">Seriennummer</string>
     <string name="edit_field_afi_status">AFI Status</string>
-    <string name="edit_field_afi_password_protect">AFI-Passwortschutz</string>
-    <string name="edit_field_data_write_protect">Daten-Schreibschutz</string>
+    <string name="edit_field_afi_password_protect">AFI-Schutz</string>
+    <string name="edit_field_data_write_protect">Schreibschutz</string>
     <string name="edit_field_crc_status">CRC Prüfsumme</string>
     <string name="edit_field_item_id">Barcode / Primary Item-ID</string>
     <string name="edit_field_item_id_hint">Item-ID (max. 16 Zeichen)</string>

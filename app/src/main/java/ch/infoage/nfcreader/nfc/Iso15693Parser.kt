@@ -760,7 +760,7 @@ object Iso15693Parser {
                     append(" | AFI: ").append(libraryData.afi.uppercase()).append(" (").append(statusDesc).append(")")
                 }
                 if (isAfiPasswordProtected != null) {
-                    append(" | AFI-Passwortschutz: ").append(if (isAfiPasswordProtected) "Ein" else "Aus")
+                    append(" | AFI-Schutz: ").append(if (isAfiPasswordProtected) "Ein" else "Aus")
                 }
                 if (isDataWriteProtected != null) {
                     append(" | Schreibschutz: ").append(if (isDataWriteProtected) "Ein" else "Aus")

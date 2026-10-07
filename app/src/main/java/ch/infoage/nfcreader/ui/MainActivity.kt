@@ -414,7 +414,7 @@ class MainActivity : AppCompatActivity() {
                         val text = when (protected) {
                             true -> "Ein"
                             false -> "Aus"
-                            null -> "-"
+                            null -> "n/v"
                         }
                         binding.tvEditAfiProtected.text = text
                     }
@@ -425,7 +425,7 @@ class MainActivity : AppCompatActivity() {
                         val text = when (protected) {
                             true -> "Ein"
                             false -> "Aus"
-                            null -> "-"
+                            null -> "n/v"
                         }
                         binding.tvEditWriteProtected.text = text
                     }
