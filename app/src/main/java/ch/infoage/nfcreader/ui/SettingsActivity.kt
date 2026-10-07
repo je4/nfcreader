@@ -55,18 +55,45 @@ class SettingsActivity : AppCompatActivity() {
             binding.rbSettingsGet.isChecked = true
         }
         binding.etSettingsJwtKey.setText(appSettings.jwtKey)
+        binding.switchSettingsUseAfiPassword.isChecked = appSettings.useAfiPassword
+        binding.etSettingsAfiPassword.setText(appSettings.afiPassword)
+        binding.switchSettingsUseWritePassword.isChecked = appSettings.useWritePassword
+        binding.etSettingsWritePassword.setText(appSettings.writePassword)
         binding.switchSettingsDebugMode.isChecked = appSettings.debugMode
     }
 
     private fun setupListeners() {
         binding.btnSaveSettings.setOnClickListener {
-            saveCurrentSettings()
-            Toast.makeText(this, R.string.settings_saved_toast, Toast.LENGTH_SHORT).show()
-            finish()
+            if (saveCurrentSettings()) {
+                Toast.makeText(this, R.string.settings_saved_toast, Toast.LENGTH_SHORT).show()
+                finish()
+            }
         }
     }
 
-    private fun saveCurrentSettings() {
+    private fun saveCurrentSettings(): Boolean {
+        val afiPasswordInput = binding.etSettingsAfiPassword.text?.toString().orEmpty().trim()
+        val writePasswordInput = binding.etSettingsWritePassword.text?.toString().orEmpty().trim()
+
+        var hasError = false
+        if (!AppSettings.isValidHex32(afiPasswordInput)) {
+            binding.tilSettingsAfiPassword.error = getString(R.string.settings_password_invalid_hex)
+            hasError = true
+        } else {
+            binding.tilSettingsAfiPassword.error = null
+        }
+
+        if (!AppSettings.isValidHex32(writePasswordInput)) {
+            binding.tilSettingsWritePassword.error = getString(R.string.settings_password_invalid_hex)
+            hasError = true
+        } else {
+            binding.tilSettingsWritePassword.error = null
+        }
+
+        if (hasError) {
+            return false
+        }
+
         val targetUrl = binding.etSettingsTargetUrl.text?.toString().orEmpty().trim()
         val httpMethod = if (binding.rbSettingsPost.isChecked) "POST" else "GET"
         val jwtKey = binding.etSettingsJwtKey.text?.toString().orEmpty().trim()
@@ -75,7 +102,12 @@ class SettingsActivity : AppCompatActivity() {
         appSettings.targetUrl = if (targetUrl.isNotBlank()) targetUrl else AppSettings.DEFAULT_TARGET_URL
         appSettings.httpMethod = httpMethod
         appSettings.jwtKey = jwtKey
+        appSettings.useAfiPassword = binding.switchSettingsUseAfiPassword.isChecked
+        appSettings.afiPassword = afiPasswordInput
+        appSettings.useWritePassword = binding.switchSettingsUseWritePassword.isChecked
+        appSettings.writePassword = writePasswordInput
         appSettings.debugMode = debugMode
         setResult(RESULT_OK)
+        return true
     }
 }

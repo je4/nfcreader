@@ -478,6 +478,10 @@ class MainActivity : AppCompatActivity() {
         viewModel.setHttpMethod(appSettings.httpMethod)
         viewModel.setJwtKey(appSettings.jwtKey)
         viewModel.setDebugMode(appSettings.debugMode)
+        viewModel.setAfiPassword(appSettings.afiPassword)
+        viewModel.setUseAfiPassword(appSettings.useAfiPassword)
+        viewModel.setWritePassword(appSettings.writePassword)
+        viewModel.setUseWritePassword(appSettings.useWritePassword)
 
         updateNfcStatus()
         updateNfcReaderMode()

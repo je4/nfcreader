@@ -47,6 +47,30 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_DEBUG_MODE, false)
         set(value) = prefs.edit().putBoolean(KEY_DEBUG_MODE, value).apply()
 
+    var afiPassword: String
+        get() = securePrefs.getString(KEY_AFI_PASSWORD, DEFAULT_AFI_PASSWORD) ?: DEFAULT_AFI_PASSWORD
+        set(value) = securePrefs.edit().putString(KEY_AFI_PASSWORD, normalizeHex32(value)).apply()
+
+    var writePassword: String
+        get() = securePrefs.getString(KEY_WRITE_PASSWORD, DEFAULT_WRITE_PASSWORD) ?: DEFAULT_WRITE_PASSWORD
+        set(value) = securePrefs.edit().putString(KEY_WRITE_PASSWORD, normalizeHex32(value)).apply()
+
+    var useAfiPassword: Boolean
+        get() = prefs.getBoolean(KEY_USE_AFI_PASSWORD, false)
+        set(value) = prefs.edit().putBoolean(KEY_USE_AFI_PASSWORD, value).apply()
+
+    var useWritePassword: Boolean
+        get() = prefs.getBoolean(KEY_USE_WRITE_PASSWORD, false)
+        set(value) = prefs.edit().putBoolean(KEY_USE_WRITE_PASSWORD, value).apply()
+
+    fun getAfiPasswordLong(): Long = parseHex32ToLong(afiPassword)
+
+    fun getWritePasswordLong(): Long = parseHex32ToLong(writePassword)
+
+    fun getAfiPasswordBytes(lsbFirst: Boolean = false): ByteArray = hex32ToBytes(afiPassword, lsbFirst)
+
+    fun getWritePasswordBytes(lsbFirst: Boolean = false): ByteArray = hex32ToBytes(writePassword, lsbFirst)
+
     private fun migratePreferences() {
         try {
             // 1. If jwtKey was previously stored in standard prefs, migrate to securePrefs and remove from standard prefs
@@ -58,7 +82,23 @@ class AppSettings(context: Context) {
                 prefs.edit().remove(KEY_JWT_KEY).apply()
             }
 
-            // 2. If targetUrl or httpMethod were stored in securePrefs, migrate back to standard prefs
+            // 2. If afiPassword or writePassword were previously stored in standard prefs, migrate to securePrefs
+            if (prefs.contains(KEY_AFI_PASSWORD)) {
+                val legacyAfi = prefs.getString(KEY_AFI_PASSWORD, null)
+                if (!legacyAfi.isNullOrBlank() && !securePrefs.contains(KEY_AFI_PASSWORD)) {
+                    securePrefs.edit().putString(KEY_AFI_PASSWORD, normalizeHex32(legacyAfi)).apply()
+                }
+                prefs.edit().remove(KEY_AFI_PASSWORD).apply()
+            }
+            if (prefs.contains(KEY_WRITE_PASSWORD)) {
+                val legacyWrite = prefs.getString(KEY_WRITE_PASSWORD, null)
+                if (!legacyWrite.isNullOrBlank() && !securePrefs.contains(KEY_WRITE_PASSWORD)) {
+                    securePrefs.edit().putString(KEY_WRITE_PASSWORD, normalizeHex32(legacyWrite)).apply()
+                }
+                prefs.edit().remove(KEY_WRITE_PASSWORD).apply()
+            }
+
+            // 3. If targetUrl or httpMethod were stored in securePrefs, migrate back to standard prefs
             if (securePrefs.contains(KEY_TARGET_URL)) {
                 val secureTargetUrl = securePrefs.getString(KEY_TARGET_URL, null)
                 if (secureTargetUrl != null && !prefs.contains(KEY_TARGET_URL)) {
@@ -87,9 +127,43 @@ class AppSettings(context: Context) {
         private const val KEY_HTTP_METHOD = "http_method"
         private const val KEY_JWT_KEY = "jwt_key"
         private const val KEY_DEBUG_MODE = "debug_mode"
+        private const val KEY_AFI_PASSWORD = "afi_password"
+        private const val KEY_WRITE_PASSWORD = "write_password"
+        private const val KEY_USE_AFI_PASSWORD = "use_afi_password"
+        private const val KEY_USE_WRITE_PASSWORD = "use_write_password"
 
         const val DEFAULT_TARGET_URL = "https://httpbin.org/get"
         const val DEFAULT_HTTP_METHOD = "GET"
+        const val DEFAULT_AFI_PASSWORD = "0"
+        const val DEFAULT_WRITE_PASSWORD = "0"
+
+        fun normalizeHex32(hex: String): String {
+            val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "").uppercase()
+            return if (clean.isEmpty()) DEFAULT_AFI_PASSWORD else clean
+        }
+
+        fun isValidHex32(hex: String): Boolean {
+            val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "")
+            if (clean.isEmpty()) return true
+            if (clean.length > 8) return false
+            return clean.toLongOrNull(16) != null
+        }
+
+        fun parseHex32ToLong(hex: String): Long {
+            val clean = hex.trim().removePrefix("0x").removePrefix("0X").replace(" ", "").replace(":", "")
+            return clean.toLongOrNull(16) ?: 0L
+        }
+
+        fun hex32ToBytes(hex: String, lsbFirst: Boolean = false): ByteArray {
+            val value = parseHex32ToLong(hex)
+            val bytes = byteArrayOf(
+                ((value ushr 24) and 0xFF).toByte(),
+                ((value ushr 16) and 0xFF).toByte(),
+                ((value ushr 8) and 0xFF).toByte(),
+                (value and 0xFF).toByte()
+            )
+            return if (lsbFirst) bytes.reversedArray() else bytes
+        }
 
         private fun createEncryptedSharedPreferences(context: Context): SharedPreferences {
             return try {

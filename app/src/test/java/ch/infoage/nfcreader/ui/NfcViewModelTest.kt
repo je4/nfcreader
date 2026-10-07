@@ -29,6 +29,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -479,5 +480,37 @@ class NfcViewModelTest {
         viewModel.onEditReadClicked()
         assertEquals(EditAction.READ, viewModel.pendingEditAction.value)
         assertEquals(EditStatusType.PENDING, viewModel.editStatusType.value)
+    }
+
+    @Test
+    fun testAfiAndWritePasswordsInViewModel() {
+        assertEquals("0", viewModel.afiPassword.value)
+        assertEquals("0", viewModel.writePassword.value)
+        assertFalse(viewModel.useAfiPassword.value)
+        assertFalse(viewModel.useWritePassword.value)
+
+        viewModel.setAfiPassword("0x12345678")
+        assertEquals("12345678", viewModel.afiPassword.value)
+
+        viewModel.setWritePassword("A1B2C3D4")
+        assertEquals("A1B2C3D4", viewModel.writePassword.value)
+
+        viewModel.setUseAfiPassword(true)
+        assertTrue(viewModel.useAfiPassword.value)
+
+        viewModel.setUseWritePassword(true)
+        assertTrue(viewModel.useWritePassword.value)
+
+        viewModel.setAfiPassword("")
+        assertEquals("0", viewModel.afiPassword.value)
+
+        viewModel.setWritePassword("   ")
+        assertEquals("0", viewModel.writePassword.value)
+
+        viewModel.setUseAfiPassword(false)
+        assertFalse(viewModel.useAfiPassword.value)
+
+        viewModel.setUseWritePassword(false)
+        assertFalse(viewModel.useWritePassword.value)
     }
 }

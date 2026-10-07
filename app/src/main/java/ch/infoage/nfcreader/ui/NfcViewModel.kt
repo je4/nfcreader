@@ -20,6 +20,7 @@ import android.nfc.Tag
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.data.model.NfcScanResult
 import ch.infoage.nfcreader.data.network.JwtGenerator
 import ch.infoage.nfcreader.data.network.UrlDispatcher
@@ -87,6 +88,18 @@ class NfcViewModel(
 
     private val _debugMode = MutableStateFlow(false)
     val debugMode: StateFlow<Boolean> = _debugMode.asStateFlow()
+
+    private val _afiPassword = MutableStateFlow(AppSettings.DEFAULT_AFI_PASSWORD)
+    val afiPassword: StateFlow<String> = _afiPassword.asStateFlow()
+
+    private val _useAfiPassword = MutableStateFlow(false)
+    val useAfiPassword: StateFlow<Boolean> = _useAfiPassword.asStateFlow()
+
+    private val _writePassword = MutableStateFlow(AppSettings.DEFAULT_WRITE_PASSWORD)
+    val writePassword: StateFlow<String> = _writePassword.asStateFlow()
+
+    private val _useWritePassword = MutableStateFlow(false)
+    val useWritePassword: StateFlow<Boolean> = _useWritePassword.asStateFlow()
 
     private val _isScanningActive = MutableStateFlow(false)
     val isScanningActive: StateFlow<Boolean> = _isScanningActive.asStateFlow()
@@ -162,6 +175,22 @@ class NfcViewModel(
 
     fun setDebugMode(debug: Boolean) {
         _debugMode.value = debug
+    }
+
+    fun setAfiPassword(password: String) {
+        _afiPassword.value = AppSettings.normalizeHex32(password)
+    }
+
+    fun setUseAfiPassword(use: Boolean) {
+        _useAfiPassword.value = use
+    }
+
+    fun setWritePassword(password: String) {
+        _writePassword.value = AppSettings.normalizeHex32(password)
+    }
+
+    fun setUseWritePassword(use: Boolean) {
+        _useWritePassword.value = use
     }
 
     fun setScanningActive(active: Boolean) {
