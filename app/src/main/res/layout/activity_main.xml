@@ -525,6 +525,112 @@
                                 android:textSize="13sp" />
                         </LinearLayout>
 
+                        <!-- Hersteller & MDID -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditManufacturer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_manufacturer"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditManufacturer"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <!-- Chipmodell & TMN -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditModel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_model"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditModel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <!-- Header & Flags -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditFlags"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_flags"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditFlags"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <!-- Seriennummer -->
+                        <LinearLayout
+                            android:id="@+id/layoutEditSerial"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="130dp"
+                                android:layout_height="wrap_content"
+                                android:text="@string/edit_field_serial"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvEditSerial"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="-"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp"
+                                android:fontFamily="monospace"
+                                android:textIsSelectable="true" />
+                        </LinearLayout>
+
                         <!-- AFI Status -->
                         <LinearLayout
                             android:layout_width="match_parent"

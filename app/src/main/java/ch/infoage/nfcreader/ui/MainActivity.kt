@@ -141,8 +141,22 @@ class MainActivity : AppCompatActivity() {
             viewModel.onEditToggleAfiClicked()
         }
 
+        var testTagIndex = 0
+        val testTags = listOf(
+            null, // ISO 15693 Finnish Library Tag (NXP ICODE SLIX)
+            "E28069952000500101D589CC", // NXP UCODE 9 Extended TID (GS1 TDS 2.0)
+            "E2801160", // Impinj Monza R6 Short TID
+            "E28034142000200080004140" // Alien Higgs 4 Extended TID
+        )
+
         binding.btnEditTestScan.setOnClickListener {
-            viewModel.triggerTestEditScan()
+            val selected = testTags[testTagIndex % testTags.size]
+            testTagIndex++
+            if (selected == null) {
+                viewModel.triggerTestEditScan()
+            } else {
+                viewModel.triggerTestEditScan(mockUid = selected)
+            }
         }
     }
 
@@ -302,6 +316,75 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     viewModel.editTagType.collectLatest { tagType ->
                         binding.tvEditTagType.text = tagType.ifBlank { "-" }
+                    }
+                }
+
+                launch {
+                    viewModel.editTransponderDetails.collectLatest { details ->
+                        if (details != null) {
+                            val epc = details.epcTid
+                            val iso = details.iso15693
+
+                            when {
+                                epc != null -> {
+                                    binding.layoutEditManufacturer.visibility = View.VISIBLE
+                                    binding.layoutEditModel.visibility = View.VISIBLE
+                                    binding.layoutEditFlags.visibility = View.VISIBLE
+                                    binding.layoutEditSerial.visibility = View.VISIBLE
+
+                                    val mfgText = "${epc.manufacturerName} (MDID: ${epc.mdidInt} / 0x${epc.mdidHex})"
+                                    binding.tvEditManufacturer.text = mfgText
+
+                                    val modelText = buildString {
+                                        append(epc.modelName ?: "Unbekannt")
+                                        if (epc.tmnHex.isNotEmpty()) {
+                                            append(" (TMN: 0x").append(epc.tmnHex).append(")")
+                                        }
+                                    }
+                                    binding.tvEditModel.text = modelText
+
+                                    val flagsText = buildString {
+                                        append("XTID: ").append(if (epc.hasXtid) "Ja" else "Nein")
+                                        append(" | Sec: ").append(if (epc.hasSecurity) "Ja" else "Nein")
+                                        append(" | File: ").append(if (epc.hasFileOpen) "Ja" else "Nein")
+                                    }
+                                    binding.tvEditFlags.text = flagsText
+
+                                    binding.tvEditSerial.text = epc.serialNumberHex ?: "-"
+                                }
+                                iso != null -> {
+                                    binding.layoutEditManufacturer.visibility = View.VISIBLE
+                                    binding.layoutEditModel.visibility = View.VISIBLE
+                                    binding.layoutEditFlags.visibility = View.GONE
+                                    binding.layoutEditSerial.visibility = View.VISIBLE
+
+                                    val mfgText = "${iso.manufacturerName} (Code: 0x${iso.mfgCodeHex})"
+                                    binding.tvEditManufacturer.text = mfgText
+
+                                    val modelText = if (iso.modelName != null) {
+                                        "${iso.modelName} (Prod: 0x${iso.productCodeHex})"
+                                    } else if (iso.productCodeHex.isNotEmpty()) {
+                                        "Produktcode 0x${iso.productCodeHex}"
+                                    } else {
+                                        "-"
+                                    }
+                                    binding.tvEditModel.text = modelText
+
+                                    binding.tvEditSerial.text = iso.serialNumberHex.ifBlank { "-" }
+                                }
+                                else -> {
+                                    binding.layoutEditManufacturer.visibility = View.GONE
+                                    binding.layoutEditModel.visibility = View.GONE
+                                    binding.layoutEditFlags.visibility = View.GONE
+                                    binding.layoutEditSerial.visibility = View.GONE
+                                }
+                            }
+                        } else {
+                            binding.layoutEditManufacturer.visibility = View.GONE
+                            binding.layoutEditModel.visibility = View.GONE
+                            binding.layoutEditFlags.visibility = View.GONE
+                            binding.layoutEditSerial.visibility = View.GONE
+                        }
                     }
                 }
 

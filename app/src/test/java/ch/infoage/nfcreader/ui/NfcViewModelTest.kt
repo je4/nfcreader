@@ -319,6 +319,40 @@ class NfcViewModelTest {
         assertEquals(3, viewModel.editLibraryData.value?.parts)
         assertEquals(2, viewModel.editLibraryData.value?.usageType)
         assertTrue(viewModel.editLibraryData.value?.isCrcValid == true)
+
+        val transponder = viewModel.editTransponderDetails.value
+        assertNotNull(transponder)
+        assertEquals(ch.infoage.nfcreader.nfc.TagIdentifierType.ISO15693_UID, transponder?.identifierType)
+        assertNotNull(transponder?.iso15693)
+        assertEquals("NXP Semiconductors", transponder?.iso15693?.manufacturerName)
+        assertEquals("ICODE SLIX", transponder?.iso15693?.modelName)
+        assertEquals("5099887766", transponder?.iso15693?.serialNumberHex)
+    }
+
+    @Test
+    fun testTriggerTestEditScanEpcGen2TidPopulatesTransponderDetails() {
+        viewModel.triggerTestEditScan(mockUid = "E28069952000500101D589CC")
+
+        assertEquals("E28069952000500101D589CC", viewModel.editUid.value)
+        assertEquals("NXP Semiconductors UCODE 9 (EPC Gen2)", viewModel.editTagType.value)
+        assertEquals(EditStatusType.SUCCESS, viewModel.editStatusType.value)
+
+        val transponder = viewModel.editTransponderDetails.value
+        assertNotNull(transponder)
+        assertEquals(ch.infoage.nfcreader.nfc.TagIdentifierType.EPC_GEN2_TID, transponder?.identifierType)
+        assertNotNull(transponder?.epcTid)
+        transponder?.epcTid?.let { epc ->
+            assertEquals("E2", epc.allocationClass)
+            assertEquals(true, epc.hasXtid)
+            assertEquals(false, epc.hasSecurity)
+            assertEquals(false, epc.hasFileOpen)
+            assertEquals(6, epc.mdidInt)
+            assertEquals("006", epc.mdidHex)
+            assertEquals("NXP Semiconductors", epc.manufacturerName)
+            assertEquals("995", epc.tmnHex)
+            assertEquals("UCODE 9", epc.modelName)
+            assertEquals("2000500101D589CC", epc.serialNumberHex)
+        }
     }
 
     @Test

@@ -23,6 +23,49 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
+/**
+ * Explizite Kennzeichnung des Transponder-Identifikatortyps nach ISO/IEC 15963.
+ */
+enum class TagIdentifierType {
+    /** 64-Bit Unique Identifier für HF-Transponder (ISO/IEC 15693 / NfcV), beginnt typischerweise mit 0xE0. */
+    ISO15693_UID,
+    /** Tag Identifier Bank 02 für UHF-Transponder (EPC Gen 2 / ISO/IEC 18000-6C / GS1 TDS), beginnt typischerweise mit 0xE2. */
+    EPC_GEN2_TID,
+    /** Generischer oder herstellerspezifischer Identifikator. */
+    GENERIC
+}
+
+data class EpcTidDetails(
+    val allocationClass: String = "E2",
+    val hasXtid: Boolean,
+    val hasSecurity: Boolean,
+    val hasFileOpen: Boolean,
+    val mdidInt: Int,
+    val mdidHex: String,
+    val mdidBinary: String,
+    val manufacturerName: String,
+    val manufacturerUrl: String? = null,
+    val tmnHex: String,
+    val modelName: String?,
+    val productUrl: String? = null,
+    val serialNumberHex: String? = null
+)
+
+data class Iso15693Details(
+    val mfgCodeHex: String,
+    val manufacturerName: String,
+    val productCodeHex: String,
+    val modelName: String?,
+    val serialNumberHex: String
+)
+
+data class TransponderDetails(
+    val identifierType: TagIdentifierType,
+    val epcTid: EpcTidDetails? = null,
+    val iso15693: Iso15693Details? = null,
+    val formattedSummary: String
+)
+
 data class ChipInfo(
     val tmnHex: String,
     val tmnBinary: String,
@@ -45,7 +88,9 @@ data class ParsedNfcTag(
     val textContent: String?,
     val fullSummary: String,
     val libraryData: FinnishLibraryData? = null,
-    val afi: String? = null
+    val afi: String? = null,
+    val identifierType: TagIdentifierType = TagIdentifierType.GENERIC,
+    val transponderDetails: TransponderDetails? = null
 )
 
 data class NfcVData(
@@ -101,6 +146,8 @@ object Iso15693Parser {
         }
 
         val fullSummary = buildSummary(uidHex, textContent, rawPayloadHex, libraryData)
+        val identifierType = resolveIdentifierType(uidHex)
+        val transponderDetails = parseTransponderDetails(uidHex)
 
         return ParsedNfcTag(
             uid = uidHex,
@@ -109,8 +156,22 @@ object Iso15693Parser {
             textContent = textContent,
             fullSummary = fullSummary,
             libraryData = libraryData,
-            afi = afiHex
+            afi = afiHex,
+            identifierType = identifierType,
+            transponderDetails = transponderDetails
         )
+    }
+
+    /**
+     * Bestimmt den [TagIdentifierType] anhand des Hex-Präfixes nach ISO/IEC 15963.
+     */
+    fun resolveIdentifierType(identifierHex: String): TagIdentifierType {
+        val clean = identifierHex.replace(":", "").replace(" ", "").trim().uppercase()
+        return when {
+            clean.startsWith("E0") -> TagIdentifierType.ISO15693_UID
+            clean.startsWith("E2") -> TagIdentifierType.EPC_GEN2_TID
+            else -> TagIdentifierType.GENERIC
+        }
     }
 
     private fun readNdefMessage(tag: Tag): String? {
@@ -295,78 +356,243 @@ object Iso15693Parser {
 
     /**
      * Ermittelt eine kompakte Transponder-Typbezeichnung (Hersteller, Modell und Protokoll)
-     * anhand der 64-Bit UID nach ISO/IEC 15693 oder EPC Gen2 TID (MDID/TMN).
+     * anhand der 64-Bit UID nach ISO/IEC 15693 (Präfix E0) oder EPC Gen2 TID (Präfix E2, MDID/TMN).
      */
     fun resolveIso15693TagType(uidHex: String): String {
         val cleanUid = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
-        if (cleanUid.length >= 4 && cleanUid.startsWith("E0")) {
-            val mfgCode = cleanUid.substring(2, 4)
-            val productCode = if (cleanUid.length >= 6) cleanUid.substring(4, 6) else ""
-            when (mfgCode) {
-                "04" -> {
-                    // NXP Semiconductors
-                    return when (productCode) {
-                        "01" -> "NXP ICODE SLIX (ISO 15693)"
-                        "02" -> "NXP ICODE SLIX-S (ISO 15693)"
-                        "03" -> "NXP ICODE SLIX2 (ISO 15693)"
-                        "04" -> "NXP ICODE DNA (ISO 15693)"
-                        "05" -> "NXP ICODE SLIX-L (ISO 15693)"
-                        "00" -> "NXP ICODE 1 (ISO 15693)"
-                        else -> "NXP ICODE (ISO 15693)"
-                    }
-                }
-                "07" -> return "TI Tag-it HF-I Plus (ISO 15693)"
-                "02" -> return "STMicroelectronics (ISO 15693)"
-                "16" -> return "EM Microelectronic (ISO 15693)"
-                "05" -> return "Infineon my-d (ISO 15693)"
-                "2B", "08" -> return "Fujitsu FRAM (ISO 15693)"
-                "1D" -> return "Maxim Integrated (ISO 15693)"
-                "06" -> return "Sony (ISO 15693)"
-            }
+        return when {
+            cleanUid.length >= 4 && cleanUid.startsWith("E0") -> resolveIso15693UidTagType(cleanUid)
+            cleanUid.length >= 4 && cleanUid.startsWith("E2") -> resolveEpcGen2TidTagType(cleanUid)
+            else -> "ISO 15693 (NfcV)"
+        }
+    }
 
-            // Check if mfgCode matches an entry in mdid_list.json
-            val mfgInt = mfgCode.toIntOrNull(16)
+    /**
+     * Erstellt eine vollständige [TransponderDetails]-Instanz für eine UID/TID.
+     */
+    fun parseTransponderDetails(uidHex: String): TransponderDetails {
+        val clean = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        val idType = resolveIdentifierType(clean)
+        val epcTid = if (idType == TagIdentifierType.EPC_GEN2_TID) parseEpcTidDetails(clean) else null
+        val iso15693 = if (idType == TagIdentifierType.ISO15693_UID) parseIso15693Details(clean) else null
+        val summary = resolveIso15693TagType(clean)
+
+        return TransponderDetails(
+            identifierType = idType,
+            epcTid = epcTid,
+            iso15693 = iso15693,
+            formattedSummary = summary
+        )
+    }
+
+    /**
+     * Extrahiert die strukturierten TID-Informationen (Allocation Class, Flags, MDID, TMN, Chiphersteller, Modell, Seriennummer)
+     * aus einer EPC Gen 2 / ISO 15963 TID-Zeichenkette nach GS1 TDS 2.0.
+     */
+    fun parseEpcTidDetails(tidHex: String): EpcTidDetails? {
+        val cleanTid = tidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        if (!cleanTid.startsWith("E2") || cleanTid.length < 2) return null
+
+        val allocationClass = if (cleanTid.length >= 2) cleanTid.substring(0, 2) else "E2"
+        val headerHex = if (cleanTid.length >= 5) cleanTid.substring(2, 5) else cleanTid.substring(2)
+        val headerVal = headerHex.toIntOrNull(16) ?: 0
+
+        // Bit 11: XTID, Bit 10: Security, Bit 9: FileOpen
+        val hasXtid = (headerVal and 0x800) != 0
+        val hasSecurity = (headerVal and 0x400) != 0
+        val hasFileOpen = (headerVal and 0x200) != 0
+
+        // Bits 8..0: 9-Bit Mask Designer ID (MDID)
+        val mdidInt = headerVal and 0x1FF
+        val mdidHex = String.format("%03X", mdidInt)
+        val mdidBinary = String.format("%9s", Integer.toBinaryString(mdidInt)).replace(' ', '0')
+
+        val designer = maskDesigners.firstOrNull { it.mdidInt == mdidInt }
+        val manufacturerName = designer?.manufacturer ?: if (mdidInt > 0) "MDID $mdidInt (0x$mdidHex)" else "Unbekannt"
+        val manufacturerUrl = designer?.manufacturerUrl
+
+        // Bits 11..0 in Zeichen 5..7: 12-Bit Tag Model Number (TMN)
+        val tmnHex = if (cleanTid.length >= 8) cleanTid.substring(5, 8) else if (cleanTid.length > 5) cleanTid.substring(5) else ""
+        val chip = if (tmnHex.isNotEmpty()) {
+            designer?.chips?.firstOrNull { it.tmnHex.equals(tmnHex, ignoreCase = true) }
+        } else null
+        val modelName = chip?.modelName
+        val productUrl = chip?.productUrl
+
+        // Extended TID / Seriennummer ab Byte 4 (Zeichen 8)
+        val serialNumberHex = if (cleanTid.length > 8) cleanTid.substring(8) else null
+
+        return EpcTidDetails(
+            allocationClass = allocationClass,
+            hasXtid = hasXtid,
+            hasSecurity = hasSecurity,
+            hasFileOpen = hasFileOpen,
+            mdidInt = mdidInt,
+            mdidHex = mdidHex,
+            mdidBinary = mdidBinary,
+            manufacturerName = manufacturerName,
+            manufacturerUrl = manufacturerUrl,
+            tmnHex = tmnHex,
+            modelName = modelName,
+            productUrl = productUrl,
+            serialNumberHex = serialNumberHex
+        )
+    }
+
+    /**
+     * Extrahiert die strukturierten UID-Informationen (Herstellercode, Herstellername, Produktcode, Modell, Seriennummer)
+     * aus einer 64-Bit ISO 15693 (NfcV) UID.
+     */
+    fun parseIso15693Details(uidHex: String): Iso15693Details? {
+        val cleanUid = uidHex.replace(":", "").replace(" ", "").trim().uppercase()
+        if (!cleanUid.startsWith("E0") || cleanUid.length < 4) return null
+
+        val mfgCodeHex = cleanUid.substring(2, 4)
+        val productCodeHex = if (cleanUid.length >= 6) cleanUid.substring(4, 6) else ""
+        val serialNumberHex = if (cleanUid.length > 6) cleanUid.substring(6) else ""
+
+        var manufacturerName = when (mfgCodeHex) {
+            "04" -> "NXP Semiconductors"
+            "07" -> "Texas Instruments"
+            "02" -> "STMicroelectronics"
+            "16" -> "EM Microelectronic"
+            "05" -> "Infineon Technologies"
+            "2B", "08" -> "Fujitsu"
+            "1D" -> "Maxim Integrated"
+            "06" -> "Sony"
+            else -> null
+        }
+
+        if (manufacturerName == null) {
+            val mfgInt = mfgCodeHex.toIntOrNull(16)
             if (mfgInt != null) {
                 val designer = maskDesigners.firstOrNull { it.mdidInt == mfgInt }
                 if (designer != null && designer.manufacturer.isNotBlank()) {
-                    return "${designer.manufacturer} (ISO 15693)"
+                    manufacturerName = designer.manufacturer
                 }
-            }
-
-            return if (productCode.isNotEmpty()) {
-                "ISO 15693 (NfcV, Mfg: $mfgCode, Prod: $productCode)"
-            } else {
-                "ISO 15693 (NfcV, Mfg: $mfgCode)"
-            }
-        } else if (cleanUid.length >= 4 && cleanUid.startsWith("E2")) {
-            // EPC Gen2 / ISO 15963 TID resolution
-            val mdidHex = if (cleanUid.length >= 5) cleanUid.substring(2, 5) else cleanUid.substring(2)
-            val mdidVal = mdidHex.toIntOrNull(16)
-            val tmnHex = if (cleanUid.length >= 8) cleanUid.substring(5, 8) else ""
-
-            if (mdidVal != null) {
-                // In EPC TID headers, the 9-bit MDID is in the lowest 9 bits of the 12-bit mask designer field
-                val mdid9Bit = mdidVal and 0x1FF
-                val designer = maskDesigners.firstOrNull { it.mdidInt == mdid9Bit }
-                if (designer != null) {
-                    val chip = if (tmnHex.isNotEmpty()) {
-                        designer.chips.firstOrNull { it.tmnHex.equals(tmnHex, ignoreCase = true) }
-                    } else null
-
-                    return when {
-                        chip != null -> "${designer.manufacturer} ${chip.modelName} (EPC Gen2)"
-                        tmnHex.isNotEmpty() -> "${designer.manufacturer} (EPC Gen2, TMN: $tmnHex)"
-                        else -> "${designer.manufacturer} (EPC Gen2)"
-                    }
-                }
-            }
-
-            return when {
-                tmnHex.isNotEmpty() -> "EPC Gen2 (MDID: $mdidHex, TMN: $tmnHex)"
-                else -> "EPC Gen2 (MDID: $mdidHex)"
             }
         }
-        return "ISO 15693 (NfcV)"
+        if (manufacturerName == null) {
+            manufacturerName = "Mfg: $mfgCodeHex"
+        }
+
+        var modelName: String? = null
+        if (mfgCodeHex == "04") {
+            modelName = when (productCodeHex) {
+                "01" -> "ICODE SLIX"
+                "02" -> "ICODE SLIX-S"
+                "03" -> "ICODE SLIX2"
+                "04" -> "ICODE DNA"
+                "05" -> "ICODE SLIX-L"
+                "00" -> "ICODE 1"
+                else -> if (productCodeHex.isNotEmpty()) "ICODE (Prod: $productCodeHex)" else "ICODE"
+            }
+        } else if (mfgCodeHex == "07") {
+            modelName = "Tag-it HF-I Plus"
+        }
+
+        return Iso15693Details(
+            mfgCodeHex = mfgCodeHex,
+            manufacturerName = manufacturerName,
+            productCodeHex = productCodeHex,
+            modelName = modelName,
+            serialNumberHex = serialNumberHex
+        )
+    }
+
+    /**
+     * Löst eine 64-Bit ISO/IEC 15693 HF-Transponder-UID (Klasse E0h) auf.
+     *
+     * Aufbau nach ISO/IEC 15693-3 / ISO/IEC 15963 (von MSB nach LSB):
+     * - Byte 7 (MSB): 0xE0 (ISO 15693 Kennung)
+     * - Byte 6: 8-Bit IC-Herstellercode (nach ISO/IEC 7816-6, z. B. 0x04 = NXP, 0x07 = TI, 0x02 = ST)
+     * - Byte 5: 8-Bit Produkttyp / Chipmodell des Herstellers (z. B. 0x01 = ICODE SLIX)
+     * - Bytes 4..0: 40-Bit eindeutige Seriennummer
+     */
+    private fun resolveIso15693UidTagType(cleanUid: String): String {
+        val mfgCode = cleanUid.substring(2, 4)
+        val productCode = if (cleanUid.length >= 6) cleanUid.substring(4, 6) else ""
+        when (mfgCode) {
+            "04" -> {
+                // NXP Semiconductors
+                return when (productCode) {
+                    "01" -> "NXP ICODE SLIX (ISO 15693)"
+                    "02" -> "NXP ICODE SLIX-S (ISO 15693)"
+                    "03" -> "NXP ICODE SLIX2 (ISO 15693)"
+                    "04" -> "NXP ICODE DNA (ISO 15693)"
+                    "05" -> "NXP ICODE SLIX-L (ISO 15693)"
+                    "00" -> "NXP ICODE 1 (ISO 15693)"
+                    else -> "NXP ICODE (ISO 15693)"
+                }
+            }
+            "07" -> return "TI Tag-it HF-I Plus (ISO 15693)"
+            "02" -> return "STMicroelectronics (ISO 15693)"
+            "16" -> return "EM Microelectronic (ISO 15693)"
+            "05" -> return "Infineon my-d (ISO 15693)"
+            "2B", "08" -> return "Fujitsu FRAM (ISO 15693)"
+            "1D" -> return "Maxim Integrated (ISO 15693)"
+            "06" -> return "Sony (ISO 15693)"
+        }
+
+        // Check if mfgCode matches an entry in mdid_list.json
+        val mfgInt = mfgCode.toIntOrNull(16)
+        if (mfgInt != null) {
+            val designer = maskDesigners.firstOrNull { it.mdidInt == mfgInt }
+            if (designer != null && designer.manufacturer.isNotBlank()) {
+                return "${designer.manufacturer} (ISO 15693)"
+            }
+        }
+
+        return if (productCode.isNotEmpty()) {
+            "ISO 15693 (NfcV, Mfg: $mfgCode, Prod: $productCode)"
+        } else {
+            "ISO 15693 (NfcV, Mfg: $mfgCode)"
+        }
+    }
+
+    /**
+     * Löst eine GS1 EPC Gen 2 / ISO 18000-6C TID-Struktur (Klasse E2h) auf.
+     *
+     * Aufbau eines 32-Bit Short TID nach GS1 TDS 2.0 (Bits 31..0):
+     * - Bits 31..24 (Byte 0): 0xE2 (ISO/IEC 15963 Class Identifier für GS1 / EPC Gen 2)
+     * - Bit 23: XTID indicator (1 = Extended Tag Identification vorhanden)
+     * - Bit 22: Security indicator (1 = Authenticate/Challenge unterstützt)
+     * - Bit 21: FileOpen indicator (1 = FileOpen unterstützt)
+     * - Bits 20..12: 9-Bit Mask Designer ID (MDID, Hersteller)
+     * - Bits 11..0: 12-Bit Tag Model Number (TMN, Chipmodell) / XTID-Segment
+     *
+     * In Hex-Darstellung (z. B. "E2806995"):
+     * - Zeichen 0..1: "E2"
+     * - Zeichen 2..4: 3 Hex-Ziffern (12 Bit: XTID/Sec/File-Flags + 9-Bit MDID)
+     *   -> `mdidVal and 0x1FF` extrahiert die exakten 9 Bit der MDID.
+     * - Zeichen 5..7: 3 Hex-Ziffern (12-Bit TMN im Format der GS1 MDID-Registry `mdid_list.json`)
+     */
+    private fun resolveEpcGen2TidTagType(cleanTid: String): String {
+        val mdidHex = if (cleanTid.length >= 5) cleanTid.substring(2, 5) else cleanTid.substring(2)
+        val mdidVal = mdidHex.toIntOrNull(16)
+        val tmnHex = if (cleanTid.length >= 8) cleanTid.substring(5, 8) else ""
+
+        if (mdidVal != null) {
+            // Die 9-Bit MDID liegt in den unteren 9 Bits des 12-Bit Feldes (Bit 20..12)
+            val mdid9Bit = mdidVal and 0x1FF
+            val designer = maskDesigners.firstOrNull { it.mdidInt == mdid9Bit }
+            if (designer != null) {
+                val chip = if (tmnHex.isNotEmpty()) {
+                    designer.chips.firstOrNull { it.tmnHex.equals(tmnHex, ignoreCase = true) }
+                } else null
+
+                return when {
+                    chip != null -> "${designer.manufacturer} ${chip.modelName} (EPC Gen2)"
+                    tmnHex.isNotEmpty() -> "${designer.manufacturer} (EPC Gen2, TMN: $tmnHex)"
+                    else -> "${designer.manufacturer} (EPC Gen2)"
+                }
+            }
+        }
+
+        return when {
+            tmnHex.isNotEmpty() -> "EPC Gen2 (MDID: $mdidHex, TMN: $tmnHex)"
+            else -> "EPC Gen2 (MDID: $mdidHex)"
+        }
     }
 
     private fun parseAsciiIfPossible(bytes: ByteArray): String? {

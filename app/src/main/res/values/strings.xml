@@ -54,8 +54,12 @@
     <string name="edit_inspector_title">Transponder-Informationen</string>
     <string name="edit_library_data_title">Bibliotheksdaten (ISO 28560)</string>
     <string name="edit_raw_hexdump_title">Block-Rohdaten (Hex-Dump)</string>
-    <string name="edit_field_uid">RFID Chip UID</string>
+    <string name="edit_field_uid">RFID Chip UID / TID</string>
     <string name="edit_field_tag_type">Transponder-Typ</string>
+    <string name="edit_field_manufacturer">Hersteller</string>
+    <string name="edit_field_model">Chipmodell</string>
+    <string name="edit_field_flags">Flags (XTID/Sec/File)</string>
+    <string name="edit_field_serial">Seriennummer</string>
     <string name="edit_field_afi_status">AFI Status</string>
     <string name="edit_field_crc_status">CRC Prüfsumme</string>
     <string name="edit_field_item_id">Barcode / Primary Item-ID</string>

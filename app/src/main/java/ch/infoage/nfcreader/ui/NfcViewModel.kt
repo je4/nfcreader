@@ -28,6 +28,8 @@ import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.Iso15693Parser
 import ch.infoage.nfcreader.nfc.Iso15693Writer
 import ch.infoage.nfcreader.nfc.ParsedNfcTag
+import ch.infoage.nfcreader.nfc.TagIdentifierType
+import ch.infoage.nfcreader.nfc.TransponderDetails
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,6 +115,9 @@ class NfcViewModel(
 
     private val _editAfi = MutableStateFlow("")
     val editAfi: StateFlow<String> = _editAfi.asStateFlow()
+
+    private val _editTransponderDetails = MutableStateFlow<TransponderDetails?>(null)
+    val editTransponderDetails: StateFlow<TransponderDetails?> = _editTransponderDetails.asStateFlow()
 
     private val _editStatus = MutableStateFlow("Bereit. Wählen Sie eine Aktion (z.B. 'Lesen').")
     val editStatus: StateFlow<String> = _editStatus.asStateFlow()
@@ -295,6 +300,7 @@ class NfcViewModel(
         _editTagType.value = parsed.tagType
         _editRawPayloadHex.value = parsed.rawPayloadHex
         _editAfi.value = parsed.afi ?: parsed.libraryData?.afi ?: ""
+        _editTransponderDetails.value = parsed.transponderDetails ?: Iso15693Parser.parseTransponderDetails(parsed.uid)
         val rawBytes = try {
             if (parsed.rawPayloadHex.isNotBlank()) {
                 val len = parsed.rawPayloadHex.length
@@ -324,11 +330,34 @@ class NfcViewModel(
         )
     }
 
-    fun triggerTestEditScan(mockData: FinnishLibraryData? = null) {
+    fun triggerTestEditScan(mockData: FinnishLibraryData? = null, mockUid: String? = null) {
+        val targetUid = mockUid ?: mockData?.uid?.takeIf { it.isNotBlank() }
+        if (targetUid != null && targetUid.replace(":", "").replace(" ", "").trim().uppercase().startsWith("E2")) {
+            val cleanTid = targetUid.replace(":", "").replace(" ", "").trim().uppercase()
+            val tagType = Iso15693Parser.resolveIso15693TagType(cleanTid)
+            val details = Iso15693Parser.parseTransponderDetails(cleanTid)
+            val parsed = ParsedNfcTag(
+                uid = cleanTid,
+                tagType = tagType,
+                rawPayloadHex = cleanTid,
+                textContent = null,
+                fullSummary = "TID: $cleanTid ($tagType)",
+                libraryData = null,
+                afi = null,
+                identifierType = TagIdentifierType.EPC_GEN2_TID,
+                transponderDetails = details
+            )
+            applyParsedEditTag(parsed)
+            _editStatus.value = "Test-TID erfolgreich geladen ($cleanTid)"
+            _editStatusType.value = EditStatusType.SUCCESS
+            _pendingEditAction.value = EditAction.NONE
+            return
+        }
+
         val randomSuffix = (1000..9999).random()
-        val mockUid = mockData?.uid?.takeIf { it.isNotBlank() } ?: "E0040150${randomSuffix}ABCD"
+        val resolvedUid = targetUid ?: "E0040150${randomSuffix}ABCD"
         val testData = mockData ?: FinnishLibraryData(
-            uid = mockUid,
+            uid = resolvedUid,
             version = 1,
             usageType = 1,
             parts = 1,
@@ -343,17 +372,20 @@ class NfcViewModel(
         )
         val encoded = FinnishDataModelParser.encode(testData)
         val hex = Iso15693Parser.bytesToHex(encoded)
+        val transponderDetails = Iso15693Parser.parseTransponderDetails(resolvedUid)
         val parsed = ParsedNfcTag(
-            uid = mockUid,
-            tagType = Iso15693Parser.resolveIso15693TagType(mockUid),
+            uid = resolvedUid,
+            tagType = Iso15693Parser.resolveIso15693TagType(resolvedUid),
             rawPayloadHex = hex,
             textContent = testData.toFormattedString(),
             fullSummary = testData.toFormattedString(),
             libraryData = testData,
-            afi = testData.afi
+            afi = testData.afi,
+            identifierType = TagIdentifierType.ISO15693_UID,
+            transponderDetails = transponderDetails
         )
         applyParsedEditTag(parsed)
-        _editStatus.value = "Test-Tag erfolgreich geladen (UID: $mockUid)"
+        _editStatus.value = "Test-Tag erfolgreich geladen (UID: $resolvedUid)"
         _editStatusType.value = EditStatusType.SUCCESS
         _pendingEditAction.value = EditAction.NONE
     }
@@ -363,6 +395,7 @@ class NfcViewModel(
         val hex = Iso15693Parser.bytesToHex(encoded)
         val parsed = FinnishDataModelParser.parse(data.uid.ifBlank { "E00401509999ABCD" }, encoded, afi = data.afi)
         val finalData = parsed ?: data
+        val transponderDetails = Iso15693Parser.parseTransponderDetails(finalData.uid)
         val parsedTag = ParsedNfcTag(
             uid = finalData.uid,
             tagType = Iso15693Parser.resolveIso15693TagType(finalData.uid),
@@ -370,7 +403,9 @@ class NfcViewModel(
             textContent = finalData.toFormattedString(),
             fullSummary = finalData.toFormattedString(),
             libraryData = finalData,
-            afi = finalData.afi
+            afi = finalData.afi,
+            identifierType = Iso15693Parser.resolveIdentifierType(finalData.uid),
+            transponderDetails = transponderDetails
         )
         applyParsedEditTag(parsedTag)
         _editStatus.value = "Test-Tag erfolgreich geschrieben!"
