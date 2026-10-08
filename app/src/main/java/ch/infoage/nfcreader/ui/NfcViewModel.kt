@@ -33,6 +33,8 @@ import ch.infoage.nfcreader.nfc.TransponderDetails
 import ch.infoage.nfcreader.util.AppLogger
 import ch.infoage.nfcreader.util.LogEntry
 import ch.infoage.nfcreader.util.LogLevel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,7 +72,8 @@ private data class ScanDataSignature(
 )
 
 class NfcViewModel(
-    private val urlDispatcher: UrlDispatcher = UrlDispatcher()
+    private val urlDispatcher: UrlDispatcher = UrlDispatcher(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     // Tab Navigation
@@ -270,16 +273,18 @@ class NfcViewModel(
         if (_currentTab.value == AppTab.SCAN) {
             if (!_isScanningActive.value || _userText.value.isEmpty()) return
 
-            val parsed = Iso15693Parser.parseTag(tag)
-            val content = parsed.textContent ?: parsed.rawPayloadHex
+            viewModelScope.launch(ioDispatcher) {
+                val parsed = Iso15693Parser.parseTag(tag)
+                val content = parsed.textContent ?: parsed.rawPayloadHex
 
-            processScan(
-                uid = parsed.uid,
-                tagType = parsed.tagType,
-                content = content,
-                rawPayloadHex = parsed.rawPayloadHex,
-                libraryData = parsed.libraryData
-            )
+                processScan(
+                    uid = parsed.uid,
+                    tagType = parsed.tagType,
+                    content = content,
+                    rawPayloadHex = parsed.rawPayloadHex,
+                    libraryData = parsed.libraryData
+                )
+            }
         } else {
             handleEditTagDiscovered(tag)
         }
@@ -297,85 +302,87 @@ class NfcViewModel(
             return
         }
 
-        when (_pendingEditAction.value) {
-            EditAction.WRITE -> {
-                val toWrite = pendingWriteData
-                if (toWrite == null) {
-                    _editStatus.value = "Keine Daten zum Schreiben vorhanden."
-                    _editStatusType.value = EditStatusType.ERROR
-                    _pendingEditAction.value = EditAction.NONE
-                    return
-                }
+        viewModelScope.launch(ioDispatcher) {
+            when (_pendingEditAction.value) {
+                EditAction.WRITE -> {
+                    val toWrite = pendingWriteData
+                    if (toWrite == null) {
+                        _editStatus.value = "Keine Daten zum Schreiben vorhanden."
+                        _editStatusType.value = EditStatusType.ERROR
+                        _pendingEditAction.value = EditAction.NONE
+                        return@launch
+                    }
 
-                val writeResult = Iso15693Writer.writeFinnishData(
-                    tag = tag,
-                    data = toWrite,
-                    useAfiPassword = _useAfiPassword.value,
-                    afiPasswordHex = _afiPassword.value,
-                    useWritePassword = _useWritePassword.value,
-                    writePasswordHex = _writePassword.value
-                )
-                if (writeResult.isSuccess) {
-                    val parsed = writeResult.getOrThrow()
-                    applyParsedEditTag(parsed)
-                    _editStatus.value = "Tag erfolgreich geschrieben!"
-                    _editStatusType.value = EditStatusType.SUCCESS
-                } else {
-                    _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                    _editStatusType.value = EditStatusType.ERROR
+                    val writeResult = Iso15693Writer.writeFinnishData(
+                        tag = tag,
+                        data = toWrite,
+                        useAfiPassword = _useAfiPassword.value,
+                        afiPasswordHex = _afiPassword.value,
+                        useWritePassword = _useWritePassword.value,
+                        writePasswordHex = _writePassword.value
+                    )
+                    if (writeResult.isSuccess) {
+                        val parsed = writeResult.getOrThrow()
+                        applyParsedEditTag(parsed)
+                        _editStatus.value = "Tag erfolgreich geschrieben!"
+                        _editStatusType.value = EditStatusType.SUCCESS
+                    } else {
+                        _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                        _editStatusType.value = EditStatusType.ERROR
+                    }
+                    _pendingEditAction.value = EditAction.NONE
+                    pendingWriteData = null
                 }
-                _pendingEditAction.value = EditAction.NONE
-                pendingWriteData = null
-            }
-            EditAction.TOGGLE_AFI -> {
-                val toggleResult = Iso15693Writer.toggleAfi(
-                    tag = tag,
-                    useAfiPassword = _useAfiPassword.value,
-                    afiPasswordHex = _afiPassword.value
-                )
-                if (toggleResult.isSuccess) {
-                    val parsed = toggleResult.getOrThrow()
-                    applyParsedEditTag(parsed)
-                    val newAfi = parsed.afi ?: _editAfi.value
-                    _editStatus.value = "AFI erfolgreich auf $newAfi umgeschaltet und Tag gelesen!"
-                    _editStatusType.value = EditStatusType.SUCCESS
-                } else {
-                    _editStatus.value = "Fehler beim Umschalten von AFI: ${toggleResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                    _editStatusType.value = EditStatusType.ERROR
+                EditAction.TOGGLE_AFI -> {
+                    val toggleResult = Iso15693Writer.toggleAfi(
+                        tag = tag,
+                        useAfiPassword = _useAfiPassword.value,
+                        afiPasswordHex = _afiPassword.value
+                    )
+                    if (toggleResult.isSuccess) {
+                        val parsed = toggleResult.getOrThrow()
+                        applyParsedEditTag(parsed)
+                        val newAfi = parsed.afi ?: _editAfi.value
+                        _editStatus.value = "AFI erfolgreich auf $newAfi umgeschaltet und Tag gelesen!"
+                        _editStatusType.value = EditStatusType.SUCCESS
+                    } else {
+                        _editStatus.value = "Fehler beim Umschalten von AFI: ${toggleResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                        _editStatusType.value = EditStatusType.ERROR
+                    }
+                    _pendingEditAction.value = EditAction.NONE
                 }
-                _pendingEditAction.value = EditAction.NONE
-            }
-            EditAction.DISABLE_AFI_PASSWORD -> {
-                val disableResult = Iso15693Writer.disableAfiPassword(
-                    tag = tag,
-                    afiPasswordHex = _afiPassword.value
-                )
-                if (disableResult.isSuccess) {
-                    val parsed = disableResult.getOrThrow()
-                    applyParsedEditTag(parsed)
-                    _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
-                    _editStatusType.value = EditStatusType.SUCCESS
-                } else {
-                    _editStatus.value = "Fehler beim Deaktivieren des AFI-Passworts: ${disableResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                    _editStatusType.value = EditStatusType.ERROR
+                EditAction.DISABLE_AFI_PASSWORD -> {
+                    val disableResult = Iso15693Writer.disableAfiPassword(
+                        tag = tag,
+                        afiPasswordHex = _afiPassword.value
+                    )
+                    if (disableResult.isSuccess) {
+                        val parsed = disableResult.getOrThrow()
+                        applyParsedEditTag(parsed)
+                        _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
+                        _editStatusType.value = EditStatusType.SUCCESS
+                    } else {
+                        _editStatus.value = "Fehler beim Deaktivieren des AFI-Passworts: ${disableResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                        _editStatusType.value = EditStatusType.ERROR
+                    }
+                    _pendingEditAction.value = EditAction.NONE
                 }
-                _pendingEditAction.value = EditAction.NONE
-            }
-            EditAction.READ -> {
-                val readResult = Iso15693Writer.readTag(tag)
-                if (readResult.isSuccess) {
-                    val parsed = readResult.getOrThrow()
-                    applyParsedEditTag(parsed)
-                    _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
-                    _editStatusType.value = EditStatusType.SUCCESS
-                } else {
-                    _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                    _editStatusType.value = EditStatusType.ERROR
+                EditAction.READ -> {
+                    val readResult = Iso15693Writer.readTag(tag)
+                    if (readResult.isSuccess) {
+                        val parsed = readResult.getOrThrow()
+                        applyParsedEditTag(parsed)
+                        _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
+                        _editStatusType.value = EditStatusType.SUCCESS
+                    } else {
+                        _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                        _editStatusType.value = EditStatusType.ERROR
+                    }
+                    _pendingEditAction.value = EditAction.NONE
                 }
-                _pendingEditAction.value = EditAction.NONE
-            }
-            EditAction.NONE -> {
-                // Nur lesen, wenn der Button 'Lesen' gedrückt wurde
+                EditAction.NONE -> {
+                    // Nur lesen, wenn der Button 'Lesen' gedrückt wurde
+                }
             }
         }
     }
@@ -656,7 +663,7 @@ class NfcViewModel(
         lastScannedData = currentData
         lastScannedTime = now
 
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             val jwtToken = if (currentKey.isNotBlank()) {
                 JwtGenerator.generateToken(
                     secret = currentKey,

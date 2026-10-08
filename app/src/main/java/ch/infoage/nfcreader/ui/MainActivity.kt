@@ -69,9 +69,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.setTab(initialTab)
 
         nfcManager = NfcReaderManager(this) { tag ->
-            runOnUiThread {
-                viewModel.handleTagDiscovered(tag)
-            }
+            viewModel.handleTagDiscovered(tag)
         }
 
         setupViews()

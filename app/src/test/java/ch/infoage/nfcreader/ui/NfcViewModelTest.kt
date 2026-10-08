@@ -49,7 +49,7 @@ class NfcViewModelTest {
         mockWebServer.start()
 
         val urlDispatcher = UrlDispatcher(dispatcher = testDispatcher)
-        viewModel = NfcViewModel(urlDispatcher)
+        viewModel = NfcViewModel(urlDispatcher, ioDispatcher = testDispatcher)
     }
 
     @After
@@ -623,5 +623,21 @@ class NfcViewModelTest {
 
         viewModel.clearLogs()
         assertEquals(0, viewModel.logs.value.size)
+    }
+
+    @Test
+    fun testHandleTagDiscoveredWhenInactiveDoesNothing() = runTest {
+        viewModel.setScanningActive(false)
+        // With scanning inactive, no processScan should be launched
+        advanceUntilIdle()
+        assertEquals(null, viewModel.lastScan.value)
+    }
+
+    @Test
+    fun testHandleEditTagDiscoveredWhenActionNoneDoesNothing() = runTest {
+        viewModel.setTab(AppTab.EDIT)
+        assertEquals(EditAction.NONE, viewModel.pendingEditAction.value)
+        advanceUntilIdle()
+        assertEquals("Bereit. Wählen Sie eine Aktion (z.B. 'Lesen').", viewModel.editStatus.value)
     }
 }
