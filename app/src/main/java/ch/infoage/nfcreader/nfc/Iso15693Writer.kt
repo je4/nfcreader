@@ -342,24 +342,23 @@ object Iso15693Writer {
             }
         }
 
-        // 3. Ensure hardware AFI protection is enabled on chip
-        if (authenticated) {
-            enableAfiProtectionInternal(nfcv, uid)
-        }
-
-        // 4. Write AFI
+        // 3. Write AFI while in Security State (Write AFI must precede 0xA6 to avoid security state reset)
         var writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
 
-        // 5. If writing failed, re-authenticate and retry write
+        // 4. If writing failed, re-authenticate and retry write
         if (!writeSuccess) {
             authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
             if (authenticated) {
-                enableAfiProtectionInternal(nfcv, uid)
                 writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
             }
         }
 
-        // 6. If tag was unprotected and write succeeded without prior authentication,
+        // 5. Ensure hardware AFI protection is enabled on chip after successful authentication/write
+        if (authenticated && writeSuccess) {
+            enableAfiProtectionInternal(nfcv, uid)
+        }
+
+        // 6. If tag was previously unprotected and write succeeded without prior authentication,
         // establish authentication, set password, and enable protection now
         if (writeSuccess && !authenticated) {
             val authDef = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
