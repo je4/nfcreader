@@ -212,7 +212,11 @@ object Iso15693Writer {
             AppLogger.d(TAG, "disableAfiPassword auth result: $authSuccess")
 
             // 2. Reset password to default 00000000
-            var resetSuccess = writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            var resetSuccess = if (authSuccess) {
+                writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            } else {
+                false
+            }
 
             // If reset failed and auth was not established, reconnect and retry auth with default 00000000
             if (!resetSuccess && !authSuccess) {
@@ -224,6 +228,7 @@ object Iso15693Writer {
             }
 
             // Verify if AFI can be written directly without password
+            reconnectNfcV(nfcv)
             val testAfi = readAfiInternal(nfcv, uid)
             val canWriteAfi = if (testAfi != null) {
                 val byteVal = try { testAfi.toInt(16).toByte() } catch (e: Exception) { null }
@@ -499,8 +504,7 @@ object Iso15693Writer {
 
     /**
      * Authenticates for EAS/AFI (Identifier 0x10) on NXP ICODE tags using GET RANDOM NUMBER (0xB2)
-     * and SET PASSWORD (0xB3). Supports both ICODE SLIX (direct 4-byte XOR password)
-     * and ICODE SLIX2 (with 1-byte password identifier).
+     * and SET PASSWORD (0xB3). Standard for NXP ICODE SLIX and SLIX2 tags.
      */
     fun authenticateAfiPassword(nfcv: NfcV, uid: ByteArray, passwordHex: String): Boolean {
         val pwdBytesLsb = AppSettings.hex32ToBytes(passwordHex, lsbFirst = true)
@@ -522,15 +526,9 @@ object Iso15693Writer {
             (pwdBytesLsb[3].toInt() xor rn1.toInt()).toByte()
         )
 
-        // Try ICODE SLIX format first (without password identifier - standard for library RFID)
-        if (sendSetPassword(nfcv, uid, xorPwdLsb)) {
-            AppLogger.d(TAG, "Authenticated successfully via ICODE SLIX format (LSB, no pwdId)")
-            return true
-        }
-
-        // Try ICODE SLIX2 format (with password identifier 0x10 for EAS/AFI)
+        // Try standard ICODE SLIX / SLIX2 format (with password identifier 0x10 for EAS/AFI, LSB)
         if (sendSetPasswordWithId(nfcv, uid, 0x10.toByte(), xorPwdLsb)) {
-            AppLogger.d(TAG, "Authenticated successfully via ICODE SLIX2 format (LSB, pwdId 0x10)")
+            AppLogger.d(TAG, "Authenticated successfully via ICODE format (LSB, pwdId 0x10)")
             return true
         }
 
@@ -548,14 +546,27 @@ object Iso15693Writer {
             (pwdBytesMsb[3].toInt() xor rn1_2.toInt()).toByte()
         )
 
-        if (sendSetPassword(nfcv, uid, xorPwdMsb)) {
-            AppLogger.d(TAG, "Authenticated successfully via ICODE SLIX format (MSB, no pwdId)")
+        if (sendSetPasswordWithId(nfcv, uid, 0x10.toByte(), xorPwdMsb)) {
+            AppLogger.d(TAG, "Authenticated successfully via ICODE format (MSB, pwdId 0x10)")
             return true
         }
 
-        if (sendSetPasswordWithId(nfcv, uid, 0x10.toByte(), xorPwdMsb)) {
-            AppLogger.d(TAG, "Authenticated successfully via ICODE SLIX2 format (MSB, pwdId 0x10)")
-            return true
+        // Fallback without pwdId (for non-standard ICs, with clean reconnect)
+        reconnectNfcV(nfcv)
+        val randomResp3 = getRandomNumber(nfcv, uid) ?: return false
+        if (randomResp3.size >= 3 && randomResp3[0] == 0x00.toByte()) {
+            val rn0_3 = randomResp3[1]
+            val rn1_3 = randomResp3[2]
+            val xorPwdNoId = byteArrayOf(
+                (pwdBytesLsb[0].toInt() xor rn0_3.toInt()).toByte(),
+                (pwdBytesLsb[1].toInt() xor rn1_3.toInt()).toByte(),
+                (pwdBytesLsb[2].toInt() xor rn0_3.toInt()).toByte(),
+                (pwdBytesLsb[3].toInt() xor rn1_3.toInt()).toByte()
+            )
+            if (sendSetPassword(nfcv, uid, xorPwdNoId)) {
+                AppLogger.d(TAG, "Authenticated successfully via legacy format without pwdId")
+                return true
+            }
         }
 
         return false
@@ -679,39 +690,13 @@ object Iso15693Writer {
 
     /**
      * Writes a new 32-bit password to the tag using WRITE PASSWORD (0xB4).
-     * Supports both ICODE SLIX (without pwdId) and ICODE SLIX2 (with pwdId 0x10).
+     * Standard for NXP ICODE SLIX and SLIX2 (with pwdId 0x10 for EAS/AFI).
      */
     fun writeAfiPasswordInternal(nfcv: NfcV, uid: ByteArray, newPasswordHex: String): Boolean {
         val pwdBytesLsb = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = true)
         val pwdBytesMsb = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = false)
 
-        // 1. SLIX format (no pwdId) - Addressed mode with Option flag (0x62)
-        val addressedCmdOptNoId = ByteArray(3 + uid.size + 4).apply {
-            this[0] = 0x62.toByte() // High data rate | Addressed | Option
-            this[1] = 0xB4.toByte() // WRITE PASSWORD
-            this[2] = 0x04.toByte() // Mfg: NXP
-            System.arraycopy(uid, 0, this, 3, uid.size)
-            System.arraycopy(pwdBytesLsb, 0, this, 3 + uid.size, 4)
-        }
-        try {
-            val resp = nfcv.transceive(addressedCmdOptNoId)
-            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
-                return true
-            }
-        } catch (ignored: Exception) {}
-
-        // 2. SLIX format (no pwdId) - Addressed mode without Option flag (0x22)
-        val addressedCmdNoId = addressedCmdOptNoId.clone().apply {
-            this[0] = 0x22.toByte()
-        }
-        try {
-            val resp = nfcv.transceive(addressedCmdNoId)
-            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
-                return true
-            }
-        } catch (ignored: Exception) {}
-
-        // 3. SLIX2 format (with pwdId 0x10) - Addressed mode with Option flag (0x62)
+        // 1. Standard ICODE format (with pwdId 0x10) - Addressed mode with Option flag (0x62)
         val addressedCmdOptWithId = ByteArray(3 + uid.size + 1 + 4).apply {
             this[0] = 0x62.toByte() // High data rate | Addressed | Option
             this[1] = 0xB4.toByte() // WRITE PASSWORD
@@ -727,7 +712,7 @@ object Iso15693Writer {
             }
         } catch (ignored: Exception) {}
 
-        // 4. SLIX2 format (with pwdId 0x10) - Addressed mode without Option flag (0x22)
+        // 2. Standard ICODE format (with pwdId 0x10) - Addressed mode without Option flag (0x22)
         val addressedCmdWithId = addressedCmdOptWithId.clone().apply {
             this[0] = 0x22.toByte()
         }
@@ -738,8 +723,38 @@ object Iso15693Writer {
             }
         } catch (ignored: Exception) {}
 
-        // 5. Fallback MSB SLIX (no pwdId)
-        System.arraycopy(pwdBytesMsb, 0, addressedCmdOptNoId, 3 + uid.size, 4)
+        // 3. Fallback MSB with pwdId 0x10
+        System.arraycopy(pwdBytesMsb, 0, addressedCmdOptWithId, 4 + uid.size, 4)
+        try {
+            val resp = nfcv.transceive(addressedCmdOptWithId)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 4. Unaddressed mode with pwdId 0x10
+        val unaddressedCmdWithId = ByteArray(4 + 4).apply {
+            this[0] = 0x42.toByte() // Option flag
+            this[1] = 0xB4.toByte()
+            this[2] = 0x04.toByte()
+            this[3] = 0x10.toByte()
+            System.arraycopy(pwdBytesLsb, 0, this, 4, 4)
+        }
+        try {
+            val resp = nfcv.transceive(unaddressedCmdWithId)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 5. Fallback without pwdId (for non-standard ICs)
+        val addressedCmdOptNoId = ByteArray(3 + uid.size + 4).apply {
+            this[0] = 0x62.toByte() // High data rate | Addressed | Option
+            this[1] = 0xB4.toByte() // WRITE PASSWORD
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+            System.arraycopy(pwdBytesLsb, 0, this, 3 + uid.size, 4)
+        }
         try {
             val resp = nfcv.transceive(addressedCmdOptNoId)
             if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
@@ -747,34 +762,7 @@ object Iso15693Writer {
             }
         } catch (ignored: Exception) {}
 
-        // 6. Unaddressed mode SLIX (no pwdId)
-        val unaddressedCmdNoId = ByteArray(3 + 4).apply {
-            this[0] = 0x02.toByte()
-            this[1] = 0xB4.toByte()
-            this[2] = 0x04.toByte()
-            System.arraycopy(pwdBytesLsb, 0, this, 3, 4)
-        }
-        try {
-            val resp = nfcv.transceive(unaddressedCmdNoId)
-            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
-                return true
-            }
-        } catch (ignored: Exception) {}
-
-        // 7. Unaddressed mode SLIX2 (with pwdId)
-        val unaddressedCmdWithId = ByteArray(4 + 4).apply {
-            this[0] = 0x02.toByte()
-            this[1] = 0xB4.toByte()
-            this[2] = 0x04.toByte()
-            this[3] = 0x10.toByte()
-            System.arraycopy(pwdBytesLsb, 0, this, 4, 4)
-        }
-        return try {
-            val resp = nfcv.transceive(unaddressedCmdWithId)
-            resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
-        } catch (ignored: Exception) {
-            false
-        }
+        return false
     }
 
     /**

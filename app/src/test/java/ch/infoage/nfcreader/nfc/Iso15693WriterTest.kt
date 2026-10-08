@@ -106,22 +106,9 @@ class Iso15693WriterTest {
         val uid = byteArrayOf(0x2F, 0x25, 0xFD.toByte(), 0x0A, 0x08, 0x01, 0x04, 0xE0.toByte())
         val xorPwd = byteArrayOf(0x12, 0x34, 0x56, 0x78)
 
-        // ICODE SLIX: Addressed frame length should be 3 + 8 + 4 = 15 bytes (Flags, 0xB3, Mfg 0x04, UID[8], XOR_PWD[4])
-        val slixFrame = ByteArray(3 + uid.size + xorPwd.size).apply {
-            this[0] = 0x22.toByte()
-            this[1] = 0xB3.toByte()
-            this[2] = 0x04.toByte()
-            System.arraycopy(uid, 0, this, 3, uid.size)
-            System.arraycopy(xorPwd, 0, this, 3 + uid.size, xorPwd.size)
-        }
-        assertEquals(15, slixFrame.size)
-        assertEquals(0x22.toByte(), slixFrame[0])
-        assertEquals(0xB3.toByte(), slixFrame[1])
-        assertEquals(0x04.toByte(), slixFrame[2])
-        assertEquals(0x12.toByte(), slixFrame[11]) // 1st byte of XOR_PWD directly follows UID
-
-        // ICODE SLIX2: Addressed frame length should be 3 + 8 + 1 + 4 = 16 bytes (Flags, 0xB3, Mfg 0x04, UID[8], PwdId 0x10, XOR_PWD[4])
-        val slix2Frame = ByteArray(3 + uid.size + 1 + xorPwd.size).apply {
+        // Standard ICODE SLIX & SLIX2: Addressed frame length is 3 + 8 + 1 + 4 = 16 bytes
+        // (Flags 0x22 / 0x62, Cmd 0xB3, Mfg 0x04, UID[8], PwdId 0x10, XOR_PWD[4])
+        val standardFrame = ByteArray(3 + uid.size + 1 + xorPwd.size).apply {
             this[0] = 0x22.toByte()
             this[1] = 0xB3.toByte()
             this[2] = 0x04.toByte()
@@ -129,8 +116,34 @@ class Iso15693WriterTest {
             this[3 + uid.size] = 0x10.toByte()
             System.arraycopy(xorPwd, 0, this, 4 + uid.size, xorPwd.size)
         }
-        assertEquals(16, slix2Frame.size)
-        assertEquals(0x10.toByte(), slix2Frame[11]) // PwdId byte
-        assertEquals(0x12.toByte(), slix2Frame[12]) // 1st byte of XOR_PWD follows PwdId
+        assertEquals(16, standardFrame.size)
+        assertEquals(0x22.toByte(), standardFrame[0])
+        assertEquals(0xB3.toByte(), standardFrame[1])
+        assertEquals(0x04.toByte(), standardFrame[2])
+        assertEquals(0x10.toByte(), standardFrame[11]) // PwdId byte 0x10
+        assertEquals(0x12.toByte(), standardFrame[12]) // 1st byte of XOR_PWD follows PwdId
+    }
+
+    @Test
+    fun testIcodeWritePasswordPayloadStructure() {
+        val uid = byteArrayOf(0x2F, 0x25, 0xFD.toByte(), 0x0A, 0x08, 0x01, 0x04, 0xE0.toByte())
+        val newPwd = byteArrayOf(0x00, 0x00, 0x00, 0x00)
+
+        // Standard ICODE SLIX & SLIX2 Write Password: 3 + 8 + 1 + 4 = 16 bytes
+        // (Flags 0x62 (Option flag), Cmd 0xB4, Mfg 0x04, UID[8], PwdId 0x10, PWD[4])
+        val writeFrame = ByteArray(3 + uid.size + 1 + newPwd.size).apply {
+            this[0] = 0x62.toByte()
+            this[1] = 0xB4.toByte()
+            this[2] = 0x04.toByte()
+            System.arraycopy(uid, 0, this, 3, uid.size)
+            this[3 + uid.size] = 0x10.toByte()
+            System.arraycopy(newPwd, 0, this, 4 + uid.size, newPwd.size)
+        }
+        assertEquals(16, writeFrame.size)
+        assertEquals(0x62.toByte(), writeFrame[0])
+        assertEquals(0xB4.toByte(), writeFrame[1])
+        assertEquals(0x04.toByte(), writeFrame[2])
+        assertEquals(0x10.toByte(), writeFrame[11]) // PwdId byte 0x10
+        assertEquals(0x00.toByte(), writeFrame[12]) // 1st byte of New Password
     }
 }
