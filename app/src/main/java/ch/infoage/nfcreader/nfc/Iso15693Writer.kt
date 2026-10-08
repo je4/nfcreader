@@ -185,7 +185,10 @@ object Iso15693Writer {
             }
 
             // 2. Reset password to default 00000000
-            writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            val resetSuccess = writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            if (!resetSuccess && !authSuccess) {
+                throw IllegalStateException("AFI-Passwort konnte auf dem Tag nicht zurückgesetzt werden.")
+            }
 
             nfcv.close()
 
@@ -317,38 +320,64 @@ object Iso15693Writer {
         useAfiPassword: Boolean = false,
         afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
     ): Boolean {
-        if (useAfiPassword) {
-            // 1. Authenticate with configured password first
-            var authSuccess = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
-            if (!authSuccess && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
-                // If tag was not configured with this password yet, try authenticating with default 00000000
-                val defaultAuth = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
-                if (defaultAuth) {
-                    writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
-                    enableAfiProtectionInternal(nfcv, uid)
-                    authSuccess = true
-                }
-            }
-
-            // 2. Try writing AFI
-            val writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
-            if (writeSuccess) {
-                // If tag was unprotected previously, ensure password & protection are applied
-                if (afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
-                    writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
-                    enableAfiProtectionInternal(nfcv, uid)
-                }
-                return true
-            }
-
-            // 3. If direct write failed, re-authenticate and retry
-            if (!authSuccess) {
-                authenticateAfiPassword(nfcv, uid, afiPasswordHex)
-            }
-            return writeAfiDirect(nfcv, uid, afiByte)
-        } else {
+        if (!useAfiPassword) {
             return writeAfiDirect(nfcv, uid, afiByte)
         }
+
+        // 1. Try authenticating with configured password first
+        var authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+
+        // 2. If authentication with configured password failed, try with default password (00000000)
+        if (!authenticated && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+            val defaultAuth = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            if (defaultAuth) {
+                // In Security State via default password: write new password to chip
+                val pwdWritten = writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
+                if (pwdWritten) {
+                    // Re-authenticate with the newly set password
+                    authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+                } else {
+                    authenticated = true
+                }
+            }
+        }
+
+        // 3. Ensure hardware AFI protection is enabled on chip
+        if (authenticated) {
+            enableAfiProtectionInternal(nfcv, uid)
+        }
+
+        // 4. Write AFI
+        var writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
+
+        // 5. If writing failed, re-authenticate and retry write
+        if (!writeSuccess) {
+            authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+            if (authenticated) {
+                enableAfiProtectionInternal(nfcv, uid)
+                writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
+            }
+        }
+
+        // 6. If tag was unprotected and write succeeded without prior authentication,
+        // establish authentication, set password, and enable protection now
+        if (writeSuccess && !authenticated) {
+            val authDef = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
+            if (authDef) {
+                if (afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+                    writeAfiPasswordInternal(nfcv, uid, afiPasswordHex)
+                    authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+                }
+                enableAfiProtectionInternal(nfcv, uid)
+            } else {
+                val authCfg = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
+                if (authCfg) {
+                    enableAfiProtectionInternal(nfcv, uid)
+                }
+            }
+        }
+
+        return writeSuccess
     }
 
     /**
@@ -483,6 +512,7 @@ object Iso15693Writer {
         val pwdBytes = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = false)
         val pwdBytesLsb = AppSettings.hex32ToBytes(newPasswordHex, lsbFirst = true)
 
+        // 1. Addressed mode (MSB)
         val addressedCmd = ByteArray(3 + uid.size + 1 + 4).apply {
             this[0] = 0x22.toByte() // High data rate | Addressed
             this[1] = 0xB4.toByte() // WRITE PASSWORD
@@ -498,9 +528,34 @@ object Iso15693Writer {
             }
         } catch (ignored: Exception) {}
 
+        // 2. Addressed mode (LSB)
         System.arraycopy(pwdBytesLsb, 0, addressedCmd, 4 + uid.size, 4)
-        return try {
+        try {
             val resp = nfcv.transceive(addressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 3. Unaddressed mode (MSB)
+        val unaddressedCmd = ByteArray(4 + 4).apply {
+            this[0] = 0x02.toByte()
+            this[1] = 0xB4.toByte()
+            this[2] = 0x04.toByte()
+            this[3] = 0x10.toByte()
+            System.arraycopy(pwdBytes, 0, this, 4, 4)
+        }
+        try {
+            val resp = nfcv.transceive(unaddressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 4. Unaddressed mode (LSB)
+        System.arraycopy(pwdBytesLsb, 0, unaddressedCmd, 4, 4)
+        return try {
+            val resp = nfcv.transceive(unaddressedCmd)
             resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
         } catch (ignored: Exception) {
             false
@@ -511,6 +566,7 @@ object Iso15693Writer {
      * Enables password protection for AFI on NXP ICODE tags using PASSWORD PROTECT EAS/AFI (0xA6).
      */
     fun enableAfiProtectionInternal(nfcv: NfcV, uid: ByteArray): Boolean {
+        // 1. Addressed mode with Option flag (0x62): Standard for NXP ICODE SLIX Password Protect
         val addressedCmd = ByteArray(3 + uid.size).apply {
             this[0] = 0x62.toByte() // High data rate | Addressed | Option flag
             this[1] = 0xA6.toByte() // PASSWORD PROTECT EAS/AFI
@@ -524,9 +580,33 @@ object Iso15693Writer {
             }
         } catch (ignored: Exception) {}
 
+        // 2. Addressed mode without Option flag (0x22) as fallback
+        val addressedCmdNoOpt = ByteArray(3 + uid.size).apply {
+            this[0] = 0x22.toByte() // High data rate | Addressed
+            this[1] = 0xA6.toByte() // PASSWORD PROTECT EAS/AFI
+            this[2] = 0x04.toByte() // Mfg: NXP
+            System.arraycopy(uid, 0, this, 3, uid.size)
+        }
+        try {
+            val resp = nfcv.transceive(addressedCmdNoOpt)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 3. Unaddressed mode with Option flag (0x42)
         val unaddressedCmd = byteArrayOf(0x42.toByte(), 0xA6.toByte(), 0x04.toByte())
-        return try {
+        try {
             val resp = nfcv.transceive(unaddressedCmd)
+            if (resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()) {
+                return true
+            }
+        } catch (ignored: Exception) {}
+
+        // 4. Unaddressed mode without Option flag (0x02)
+        val unaddressedCmdNoOpt = byteArrayOf(0x02.toByte(), 0xA6.toByte(), 0x04.toByte())
+        return try {
+            val resp = nfcv.transceive(unaddressedCmdNoOpt)
             resp != null && resp.isNotEmpty() && resp[0] == 0x00.toByte()
         } catch (ignored: Exception) {
             false
