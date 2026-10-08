@@ -67,4 +67,37 @@ class Iso15693WriterTest {
         assertTrue(lines[0].startsWith("Block 00:"))
         assertTrue(lines[8].startsWith("Block 08:"))
     }
+
+    @Test
+    fun testXorPasswordCalculationForIcodeSlix() {
+        // Given random number response: RN[0]=0x7C, RN[1]=0x06
+        val rn0 = 0x7C.toByte()
+        val rn1 = 0x06.toByte()
+
+        // Test with default password 00000000
+        val defaultPwdLsb = ch.infoage.nfcreader.data.local.AppSettings.hex32ToBytes("00000000", lsbFirst = true)
+        val xorDefault = byteArrayOf(
+            (defaultPwdLsb[0].toInt() xor rn0.toInt()).toByte(),
+            (defaultPwdLsb[1].toInt() xor rn1.toInt()).toByte(),
+            (defaultPwdLsb[2].toInt() xor rn0.toInt()).toByte(),
+            (defaultPwdLsb[3].toInt() xor rn1.toInt()).toByte()
+        )
+        assertEquals(0x7C.toByte(), xorDefault[0])
+        assertEquals(0x06.toByte(), xorDefault[1])
+        assertEquals(0x7C.toByte(), xorDefault[2])
+        assertEquals(0x06.toByte(), xorDefault[3])
+
+        // Test with known password 0F0F0F0F -> Expected XOR 0x73097309 (LSB first: 73 09 73 09)
+        val pwd0fLsb = ch.infoage.nfcreader.data.local.AppSettings.hex32ToBytes("0F0F0F0F", lsbFirst = true)
+        val xor0f = byteArrayOf(
+            (pwd0fLsb[0].toInt() xor rn0.toInt()).toByte(),
+            (pwd0fLsb[1].toInt() xor rn1.toInt()).toByte(),
+            (pwd0fLsb[2].toInt() xor rn0.toInt()).toByte(),
+            (pwd0fLsb[3].toInt() xor rn1.toInt()).toByte()
+        )
+        assertEquals(0x73.toByte(), xor0f[0])
+        assertEquals(0x09.toByte(), xor0f[1])
+        assertEquals(0x73.toByte(), xor0f[2])
+        assertEquals(0x09.toByte(), xor0f[3])
+    }
 }
