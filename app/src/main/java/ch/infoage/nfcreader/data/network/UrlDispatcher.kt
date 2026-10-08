@@ -18,6 +18,7 @@ package ch.infoage.nfcreader.data.network
 
 import ch.infoage.nfcreader.data.model.ScanResponse
 import ch.infoage.nfcreader.nfc.FinnishLibraryData
+import ch.infoage.nfcreader.util.AppLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -191,11 +192,13 @@ class UrlDispatcher(
                 timestamp = startTime
             )
 
+            AppLogger.i(TAG, "Dispatching HTTP ${prepared.httpMethod} -> ${prepared.fullUrl}")
             val response = client.newCall(prepared.request).execute()
             val durationMs = System.currentTimeMillis() - startTime
             val responseBody = response.body?.string() ?: ""
 
             if (response.isSuccessful) {
+                AppLogger.i(TAG, "HTTP Response: ${response.code} ${response.message} (${durationMs}ms)")
                 Result.success(
                     ScanResponse(
                         httpStatus = response.code,
@@ -209,16 +212,20 @@ class UrlDispatcher(
                     )
                 )
             } else {
+                AppLogger.w(TAG, "HTTP Error: ${response.code} ${response.message} (${durationMs}ms)")
                 Result.failure(
                     IOException("HTTP ${response.code}: ${response.message}\n$responseBody")
                 )
             }
         } catch (e: Exception) {
+            AppLogger.e(TAG, "HTTP Request execution failed: ${e.message}", e)
             Result.failure(e)
         }
     }
 
     companion object {
+        private const val TAG = "UrlDispatcher"
+
         fun formatHttpRequestDebug(
             method: String,
             url: String,

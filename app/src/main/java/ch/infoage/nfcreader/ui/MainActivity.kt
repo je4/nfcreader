@@ -39,6 +39,8 @@ import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.databinding.ActivityMainBinding
 import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.NfcReaderManager
+import ch.infoage.nfcreader.util.AppLogger
+import ch.infoage.nfcreader.util.LogLevel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -52,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nfcManager: NfcReaderManager
     private lateinit var appSettings: AppSettings
     private val historyAdapter = ScanHistoryAdapter()
+    private val logAdapter = LogEntryAdapter()
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         appSettings = AppSettings(this)
 
         val initialTab = AppTab.values().find { it.name.equals(appSettings.selectedTab, ignoreCase = true) } ?: AppTab.SCAN
+        AppLogger.i(TAG, "MainActivity created with initial tab: ${initialTab.name}")
         viewModel.setTab(initialTab)
 
         nfcManager = NfcReaderManager(this) { tag ->
@@ -102,6 +106,11 @@ class MainActivity : AppCompatActivity() {
                     appSettings.selectedTab = AppTab.EDIT.name
                     true
                 }
+                R.id.nav_log -> {
+                    viewModel.setTab(AppTab.LOG)
+                    appSettings.selectedTab = AppTab.LOG.name
+                    true
+                }
                 else -> false
             }
         }
@@ -130,6 +139,34 @@ class MainActivity : AppCompatActivity() {
 
         binding.tvClearHistory.setOnClickListener {
             viewModel.clearHistory()
+        }
+
+        // Setup Log Mode Views
+        binding.rvAppLogs.layoutManager = LinearLayoutManager(this)
+        binding.rvAppLogs.adapter = logAdapter
+
+        binding.btnCopyLogs.setOnClickListener {
+            val formatted = viewModel.getFormattedLogs()
+            if (formatted.isNotBlank()) {
+                copyToClipboard(formatted, getString(R.string.log_copied_toast))
+            } else {
+                Toast.makeText(this, R.string.log_empty, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnClearLogs.setOnClickListener {
+            viewModel.clearLogs()
+        }
+
+        binding.chipGroupLogLevel.setOnCheckedStateChangeListener { _, checkedIds ->
+            val filter = when (checkedIds.firstOrNull()) {
+                R.id.chipFilterDebug -> LogLevel.DEBUG
+                R.id.chipFilterInfo -> LogLevel.INFO
+                R.id.chipFilterWarn -> LogLevel.WARN
+                R.id.chipFilterError -> LogLevel.ERROR
+                else -> null
+            }
+            viewModel.setLogLevelFilter(filter)
         }
 
         // Setup Edit Mode Views
@@ -224,13 +261,39 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     viewModel.currentTab.collectLatest { tab ->
                         appSettings.selectedTab = tab.name
-                        val itemId = if (tab == AppTab.SCAN) R.id.nav_scan else R.id.nav_edit
+                        val itemId = when (tab) {
+                            AppTab.SCAN -> R.id.nav_scan
+                            AppTab.EDIT -> R.id.nav_edit
+                            AppTab.LOG -> R.id.nav_log
+                        }
                         if (binding.bottomNavigation.selectedItemId != itemId) {
                             binding.bottomNavigation.selectedItemId = itemId
                         }
                         binding.layoutScan.visibility = if (tab == AppTab.SCAN) View.VISIBLE else View.GONE
                         binding.layoutEdit.visibility = if (tab == AppTab.EDIT) View.VISIBLE else View.GONE
+                        binding.layoutLog.visibility = if (tab == AppTab.LOG) View.VISIBLE else View.GONE
                         updateNfcReaderMode()
+                    }
+                }
+
+                // Observe System Logs
+                launch {
+                    viewModel.logs.collectLatest { logsList ->
+                        val filter = viewModel.logLevelFilter.value
+                        val filtered = if (filter == null) logsList else logsList.filter { it.level.priority >= filter.priority }
+                        logAdapter.submitList(filtered)
+                        binding.tvEmptyLogs.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+                        binding.tvLogHeaderTitle.text = "${getString(R.string.log_title)} (${filtered.size})"
+                    }
+                }
+
+                launch {
+                    viewModel.logLevelFilter.collectLatest { filter ->
+                        val allLogs = viewModel.logs.value
+                        val filtered = if (filter == null) allLogs else allLogs.filter { it.level.priority >= filter.priority }
+                        logAdapter.submitList(filtered)
+                        binding.tvEmptyLogs.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+                        binding.tvLogHeaderTitle.text = "${getString(R.string.log_title)} (${filtered.size})"
                     }
                 }
 
@@ -512,6 +575,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        AppLogger.d(TAG, "onResume: sync preferences and update reader mode")
         // Sync preferences with ViewModel
         viewModel.setTargetUrl(appSettings.targetUrl)
         viewModel.setHttpMethod(appSettings.httpMethod)
@@ -536,6 +600,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        AppLogger.d(TAG, "onPause: stopping reader mode")
         nfcManager.stopContinuousScanning()
     }
 
@@ -547,6 +612,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleNfcIntent(intent: Intent) {
         val action = intent.action
+        AppLogger.i(TAG, "handleNfcIntent with action: $action")
         if (action == NfcAdapter.ACTION_TECH_DISCOVERED ||
             action == NfcAdapter.ACTION_TAG_DISCOVERED ||
             action == NfcAdapter.ACTION_NDEF_DISCOVERED
@@ -564,15 +630,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNfcReaderMode() {
-        if (viewModel.currentTab.value == AppTab.SCAN) {
-            if (viewModel.isScanningActive.value && viewModel.userText.value.isNotEmpty()) {
+        when (viewModel.currentTab.value) {
+            AppTab.SCAN -> {
+                if (viewModel.isScanningActive.value && viewModel.userText.value.isNotEmpty()) {
+                    nfcManager.startContinuousScanning()
+                } else {
+                    nfcManager.stopContinuousScanning()
+                }
+            }
+            AppTab.EDIT -> {
+                // In Edit Mode, enable reader mode so discovered tags are captured immediately
                 nfcManager.startContinuousScanning()
-            } else {
+            }
+            AppTab.LOG -> {
                 nfcManager.stopContinuousScanning()
             }
-        } else {
-            // In Edit Mode, enable reader mode so discovered tags are captured immediately
-            nfcManager.startContinuousScanning()
         }
     }
 
@@ -606,9 +678,13 @@ class MainActivity : AppCompatActivity() {
     private fun copyToClipboard(text: String, message: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         if (clipboard != null) {
-            val clip = ClipData.newPlainText("HTTP-Request Debug", text)
+            val clip = ClipData.newPlainText("Debug Logs", text)
             clipboard.setPrimaryClip(clip)
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }

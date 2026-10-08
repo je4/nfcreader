@@ -17,7 +17,6 @@
 package ch.infoage.nfcreader.ui
 
 import android.nfc.Tag
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.infoage.nfcreader.data.local.AppSettings
@@ -31,6 +30,9 @@ import ch.infoage.nfcreader.nfc.Iso15693Writer
 import ch.infoage.nfcreader.nfc.ParsedNfcTag
 import ch.infoage.nfcreader.nfc.TagIdentifierType
 import ch.infoage.nfcreader.nfc.TransponderDetails
+import ch.infoage.nfcreader.util.AppLogger
+import ch.infoage.nfcreader.util.LogEntry
+import ch.infoage.nfcreader.util.LogLevel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +40,8 @@ import kotlinx.coroutines.launch
 
 enum class AppTab {
     SCAN,
-    EDIT
+    EDIT,
+    LOG
 }
 
 enum class EditAction {
@@ -70,9 +73,19 @@ class NfcViewModel(
     private val urlDispatcher: UrlDispatcher = UrlDispatcher()
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "NfcViewModel"
+    }
+
     // Tab Navigation
     private val _currentTab = MutableStateFlow(AppTab.SCAN)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
+
+    // Logging & Debug State
+    val logs: StateFlow<List<LogEntry>> = AppLogger.logs
+
+    private val _logLevelFilter = MutableStateFlow<LogLevel?>(null)
+    val logLevelFilter: StateFlow<LogLevel?> = _logLevelFilter.asStateFlow()
 
     // Scan Mode State
     private val _userText = MutableStateFlow("")
@@ -155,60 +168,87 @@ class NfcViewModel(
     private var lastScannedTime: Long = 0
 
     fun setTab(tab: AppTab) {
+        AppLogger.i(TAG, "Navigating to tab: ${tab.name}")
         _currentTab.value = tab
-        if (tab == AppTab.EDIT) {
+        if (tab != AppTab.SCAN) {
             _isScanningActive.value = false
         }
     }
 
+    fun setLogLevelFilter(level: LogLevel?) {
+        _logLevelFilter.value = level
+        AppLogger.d(TAG, "Log filter changed to: ${level?.label ?: "ALL"}")
+    }
+
+    fun clearLogs() {
+        AppLogger.clear()
+    }
+
+    fun getFormattedLogs(): String {
+        return AppLogger.getFormattedLogs(_logLevelFilter.value)
+    }
+
     fun setUserText(text: String) {
         _userText.value = text
+        AppLogger.d(TAG, "User location set to: \"$text\"")
         if (text.isEmpty() && _isScanningActive.value) {
             _isScanningActive.value = false
+            AppLogger.i(TAG, "Scanning paused because location is empty")
         }
     }
 
     fun setTargetUrl(url: String) {
         _targetUrl.value = url
+        AppLogger.d(TAG, "Target URL set to: $url")
     }
 
     fun setHttpMethod(method: String) {
         _httpMethod.value = method
+        AppLogger.d(TAG, "HTTP Method set to: $method")
     }
 
     fun setJwtKey(key: String) {
         _jwtKey.value = key
+        AppLogger.d(TAG, "JWT key updated (configured: ${key.isNotBlank()})")
     }
 
     fun setDebugMode(debug: Boolean) {
         _debugMode.value = debug
+        AppLogger.d(TAG, "Debug mode set to: $debug")
     }
 
     fun setAfiPassword(password: String) {
         _afiPassword.value = AppSettings.normalizeHex32(password)
+        AppLogger.d(TAG, "AFI password configured")
     }
 
     fun setUseAfiPassword(use: Boolean) {
         _useAfiPassword.value = use
+        AppLogger.d(TAG, "Use AFI password set to: $use")
     }
 
     fun setWritePassword(password: String) {
         _writePassword.value = AppSettings.normalizeHex32(password)
+        AppLogger.d(TAG, "Write password configured")
     }
 
     fun setUseWritePassword(use: Boolean) {
         _useWritePassword.value = use
+        AppLogger.d(TAG, "Use Write password set to: $use")
     }
 
     fun setScanningActive(active: Boolean) {
-        if (active && (_userText.value.isEmpty() || _currentTab.value == AppTab.EDIT)) {
+        if (active && (_userText.value.isEmpty() || _currentTab.value != AppTab.SCAN)) {
             _isScanningActive.value = false
+            AppLogger.w(TAG, "Cannot activate scanning: location empty or not in SCAN tab")
             return
         }
         _isScanningActive.value = active
+        AppLogger.i(TAG, "Continuous scanning set to: $active")
     }
 
     fun clearHistory() {
+        AppLogger.i(TAG, "Clearing scan history")
         _scanHistory.value = emptyList()
         _lastScan.value = null
         lastScannedData = null
@@ -679,11 +719,7 @@ class NfcViewModel(
             )
 
             if (_debugMode.value && preparedRequest != null) {
-                try {
-                    Log.d("NfcHttpDebug", "=== HTTP REQUEST (DEBUG) ===\n${preparedRequest.debugString}")
-                } catch (e: Throwable) {
-                    println("=== HTTP REQUEST (DEBUG) ===\n${preparedRequest.debugString}")
-                }
+                AppLogger.d("NfcHttpDebug", "=== HTTP REQUEST (DEBUG) ===\n${preparedRequest.debugString}")
             }
 
             val result = urlDispatcher.dispatchScan(
@@ -700,6 +736,7 @@ class NfcViewModel(
 
             val completedScan = if (result.isSuccess) {
                 val response = result.getOrThrow()
+                AppLogger.i(TAG, "Scan processed successfully for UID $uid -> HTTP ${response.httpStatus}")
                 pendingScan.copy(
                     requestUrl = response.requestUrl,
                     httpStatus = response.httpStatus,
@@ -712,6 +749,7 @@ class NfcViewModel(
                 )
             } else {
                 val error = result.exceptionOrNull()
+                AppLogger.w(TAG, "Scan dispatch failed for UID $uid: ${error?.localizedMessage}")
                 pendingScan.copy(
                     errorMessage = error?.localizedMessage ?: "Unbekannter Fehler",
                     isSuccess = false

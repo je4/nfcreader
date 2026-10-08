@@ -18,8 +18,8 @@ package ch.infoage.nfcreader.nfc
 
 import android.nfc.Tag
 import android.nfc.tech.NfcV
-import android.util.Log
 import ch.infoage.nfcreader.data.local.AppSettings
+import ch.infoage.nfcreader.util.AppLogger
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
@@ -39,12 +39,16 @@ object Iso15693Writer {
      */
     fun readTag(tag: Tag): Result<ParsedNfcTag> {
         if (!isIso15693(tag)) {
+            AppLogger.w(TAG, "readTag: Tag is not ISO 15693 (NfcV)")
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
+        AppLogger.i(TAG, "Reading ISO 15693 tag UID=${Iso15693Parser.bytesToHex(tag.id)}")
         return try {
             val parsed = Iso15693Parser.parseTag(tag)
+            AppLogger.d(TAG, "Tag successfully read and parsed: UID=${parsed.uid}")
             Result.success(parsed)
         } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to read ISO 15693 tag: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -62,11 +66,14 @@ object Iso15693Writer {
         writePasswordHex: String = AppSettings.DEFAULT_WRITE_PASSWORD
     ): Result<ParsedNfcTag> {
         if (!isIso15693(tag)) {
+            AppLogger.w(TAG, "writeFinnishData: Tag is not ISO 15693 (NfcV)")
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
 
         val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
         val uid = tag.id
+        val uidHex = Iso15693Parser.bytesToHex(uid)
+        AppLogger.i(TAG, "writeFinnishData started for UID $uidHex: ItemId=${data.itemId}, AFI=${data.afi}, PwdProtected=$useWritePassword")
 
         return try {
             nfcv.connect()
@@ -79,8 +86,10 @@ object Iso15693Writer {
                 val blockData = encodedBytes.copyOfRange(blockIndex * blockSize, (blockIndex + 1) * blockSize)
                 val writeSuccess = writeSingleBlock(nfcv, uid, blockIndex, blockData)
                 if (!writeSuccess) {
+                    AppLogger.e(TAG, "Failed writing block $blockIndex: ${Iso15693Parser.bytesToHex(blockData)}")
                     throw IllegalStateException("Fehler beim Schreiben von Block $blockIndex.")
                 }
+                AppLogger.d(TAG, "Wrote block $blockIndex: ${Iso15693Parser.bytesToHex(blockData)}")
             }
 
             // Write AFI if specified
@@ -93,7 +102,9 @@ object Iso15693Writer {
                 if (afiByte != null) {
                     val afiSuccess = writeAfiInternal(nfcv, uid, afiByte, useAfiPassword, afiPasswordHex)
                     if (!afiSuccess) {
-                        Log.w(TAG, "AFI-Schreibbefehl konnte nicht ausgeführt werden.")
+                        AppLogger.w(TAG, "AFI-Schreibbefehl konnte nicht ausgeführt werden.")
+                    } else {
+                        AppLogger.i(TAG, "AFI 0x${data.afi} successfully written")
                     }
                 }
             }
@@ -102,8 +113,10 @@ object Iso15693Writer {
 
             // Re-read tag to return fresh parsed state
             val parsed = Iso15693Parser.parseTag(tag)
+            AppLogger.i(TAG, "writeFinnishData completed successfully for UID $uidHex")
             Result.success(parsed)
         } catch (e: Exception) {
+            AppLogger.e(TAG, "writeFinnishData failed for UID $uidHex: ${e.message}", e)
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}
@@ -123,25 +136,31 @@ object Iso15693Writer {
         afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
     ): Result<ParsedNfcTag> {
         if (!isIso15693(tag)) {
+            AppLogger.w(TAG, "toggleAfi: Tag is not ISO 15693 (NfcV)")
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
 
         val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
         val uid = tag.id
+        val uidHex = Iso15693Parser.bytesToHex(uid)
+        AppLogger.i(TAG, "toggleAfi started for UID $uidHex")
 
         return try {
             nfcv.connect()
 
             // 1. Read current AFI directly from the connected tag
             val currentAfi = readAfiInternal(nfcv, uid)
+            AppLogger.d(TAG, "toggleAfi: Current AFI is $currentAfi")
 
             // Determine target AFI: C2 (Ausgeliehen) -> 07 (Gesichert), otherwise -> C2
             val targetAfiStr = if (currentAfi?.trim()?.uppercase() == "C2") "07" else "C2"
             val targetAfiByte = targetAfiStr.toInt(16).toByte()
+            AppLogger.i(TAG, "toggleAfi: Target AFI is $targetAfiStr")
 
             // 2. Write toggled AFI to tag
             val writeSuccess = writeAfiInternal(nfcv, uid, targetAfiByte, useAfiPassword, afiPasswordHex)
             if (!writeSuccess) {
+                AppLogger.e(TAG, "toggleAfi: Failed writing toggled AFI $targetAfiStr")
                 throw IllegalStateException("AFI-Schreibbefehl wurde vom Tag nicht akzeptiert.")
             }
 
@@ -149,8 +168,10 @@ object Iso15693Writer {
 
             // 3. Read tag completely as if 'Lesen' was pressed
             val parsed = Iso15693Parser.parseTag(tag)
+            AppLogger.i(TAG, "toggleAfi completed successfully for UID $uidHex (New AFI: ${parsed.afi})")
             Result.success(parsed)
         } catch (e: Exception) {
+            AppLogger.e(TAG, "toggleAfi failed for UID $uidHex: ${e.message}", e)
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}
@@ -169,11 +190,14 @@ object Iso15693Writer {
         afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
     ): Result<ParsedNfcTag> {
         if (!isIso15693(tag)) {
+            AppLogger.w(TAG, "disableAfiPassword: Tag is not ISO 15693 (NfcV)")
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
 
         val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
         val uid = tag.id
+        val uidHex = Iso15693Parser.bytesToHex(uid)
+        AppLogger.i(TAG, "disableAfiPassword started for UID $uidHex")
 
         return try {
             nfcv.connect()
@@ -181,12 +205,15 @@ object Iso15693Writer {
             // 1. Authenticate with current configured password or default 00000000
             var authSuccess = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
             if (!authSuccess && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+                AppLogger.d(TAG, "Authentication with configured pwd failed, trying default 00000000")
                 authSuccess = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
             }
+            AppLogger.d(TAG, "disableAfiPassword auth result: $authSuccess")
 
             // 2. Reset password to default 00000000
             val resetSuccess = writeAfiPasswordInternal(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
             if (!resetSuccess && !authSuccess) {
+                AppLogger.e(TAG, "disableAfiPassword: Could not reset AFI password on chip")
                 throw IllegalStateException("AFI-Passwort konnte auf dem Tag nicht zurückgesetzt werden.")
             }
 
@@ -194,8 +221,10 @@ object Iso15693Writer {
 
             // 3. Re-read tag completely
             val parsed = Iso15693Parser.parseTag(tag)
+            AppLogger.i(TAG, "disableAfiPassword completed successfully for UID $uidHex")
             Result.success(parsed)
         } catch (e: Exception) {
+            AppLogger.e(TAG, "disableAfiPassword failed for UID $uidHex: ${e.message}", e)
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}
@@ -244,28 +273,35 @@ object Iso15693Writer {
         afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
     ): Result<String> {
         if (!isIso15693(tag)) {
+            AppLogger.w(TAG, "writeAfi: Tag is not ISO 15693 (NfcV)")
             return Result.failure(IllegalArgumentException("Nur ISO 15693 (NfcV) Tags werden unterstützt."))
         }
 
         val afiByte = try {
             afiHex.trim().toInt(16).toByte()
         } catch (e: Exception) {
+            AppLogger.e(TAG, "writeAfi: Invalid AFI hex value '$afiHex'", e)
             return Result.failure(IllegalArgumentException("Ungültiger AFI-Hex-Wert: $afiHex"))
         }
 
         val nfcv = NfcV.get(tag) ?: return Result.failure(IllegalStateException("NfcV nicht verfügbar."))
         val uid = tag.id
+        val uidHex = Iso15693Parser.bytesToHex(uid)
+        AppLogger.i(TAG, "writeAfi started for UID $uidHex: AFI=0x$afiHex, usePwd=$useAfiPassword")
 
         return try {
             nfcv.connect()
             val success = writeAfiInternal(nfcv, uid, afiByte, useAfiPassword, afiPasswordHex)
             nfcv.close()
             if (success) {
+                AppLogger.i(TAG, "writeAfi succeeded for UID $uidHex")
                 Result.success(String.format("%02X", afiByte.toInt() and 0xFF))
             } else {
+                AppLogger.e(TAG, "writeAfi rejected by tag for UID $uidHex")
                 Result.failure(IllegalStateException("AFI-Schreibbefehl wurde vom Tag nicht akzeptiert."))
             }
         } catch (e: Exception) {
+            AppLogger.e(TAG, "writeAfi failed for UID $uidHex: ${e.message}", e)
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}
@@ -321,14 +357,18 @@ object Iso15693Writer {
         afiPasswordHex: String = AppSettings.DEFAULT_AFI_PASSWORD
     ): Boolean {
         if (!useAfiPassword) {
+            AppLogger.d(TAG, "writeAfiInternal: Direct write (no password)")
             return writeAfiDirect(nfcv, uid, afiByte)
         }
+
+        AppLogger.i(TAG, "writeAfiInternal: Attempting password-protected write with pwd=$afiPasswordHex")
 
         // 1. Try authenticating with configured password first
         var authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
 
         // 2. If authentication with configured password failed, try with default password (00000000)
         if (!authenticated && afiPasswordHex != AppSettings.DEFAULT_AFI_PASSWORD) {
+            AppLogger.d(TAG, "Auth with $afiPasswordHex failed, attempting default password 00000000")
             val defaultAuth = authenticateAfiPassword(nfcv, uid, AppSettings.DEFAULT_AFI_PASSWORD)
             if (defaultAuth) {
                 // In Security State via default password: write new password to chip
@@ -347,6 +387,7 @@ object Iso15693Writer {
 
         // 4. If writing failed, re-authenticate and retry write
         if (!writeSuccess) {
+            AppLogger.w(TAG, "writeAfiDirect failed, re-authenticating and retrying write")
             authenticated = authenticateAfiPassword(nfcv, uid, afiPasswordHex)
             if (authenticated) {
                 writeSuccess = writeAfiDirect(nfcv, uid, afiByte)
@@ -355,6 +396,7 @@ object Iso15693Writer {
 
         // 5. Ensure hardware AFI protection is enabled on chip after successful authentication/write
         if (authenticated && writeSuccess) {
+            AppLogger.d(TAG, "Enabling hardware AFI protection after successful write")
             enableAfiProtectionInternal(nfcv, uid)
         }
 
@@ -376,6 +418,7 @@ object Iso15693Writer {
             }
         }
 
+        AppLogger.i(TAG, "writeAfiInternal result: writeSuccess=$writeSuccess, authenticated=$authenticated")
         return writeSuccess
     }
 

@@ -20,6 +20,7 @@ import android.app.Activity
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Bundle
+import ch.infoage.nfcreader.util.AppLogger
 
 class NfcReaderManager(
     private val activity: Activity,
@@ -40,8 +41,15 @@ class NfcReaderManager(
     }
 
     fun startContinuousScanning() {
-        val adapter = nfcAdapter ?: return
-        if (!adapter.isEnabled) return
+        val adapter = nfcAdapter
+        if (adapter == null) {
+            AppLogger.w(TAG, "startContinuousScanning: NFC adapter not available on device")
+            return
+        }
+        if (!adapter.isEnabled) {
+            AppLogger.w(TAG, "startContinuousScanning: NFC is disabled")
+            return
+        }
 
         val flags = NfcAdapter.FLAG_READER_NFC_V or
                 NfcAdapter.FLAG_READER_NFC_A or
@@ -54,24 +62,34 @@ class NfcReaderManager(
         }
 
         try {
+            AppLogger.i(TAG, "Enabling NFC reader mode (Flags: NFC_V/A/B/F, delay=250ms)")
             adapter.enableReaderMode(activity, this, flags, options)
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLogger.e(TAG, "Error enabling reader mode: ${e.message}", e)
         }
     }
 
     fun stopContinuousScanning() {
         val adapter = nfcAdapter ?: return
         try {
+            AppLogger.i(TAG, "Disabling NFC reader mode")
             adapter.disableReaderMode(activity)
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLogger.e(TAG, "Error disabling reader mode: ${e.message}", e)
         }
     }
 
     override fun onTagDiscovered(tag: Tag?) {
         if (tag != null) {
+            val uidHex = Iso15693Parser.bytesToHex(tag.id)
+            AppLogger.i(TAG, "NFC Tag discovered by hardware reader: UID=$uidHex, Techs=${tag.techList.map { it.substringAfterLast('.') }}")
             onTagScanned(tag)
+        } else {
+            AppLogger.w(TAG, "onTagDiscovered called with null tag")
         }
+    }
+
+    companion object {
+        private const val TAG = "NfcReaderManager"
     }
 }

@@ -50,6 +50,20 @@
     <!-- Navigation -->
     <string name="nav_scan">Scan</string>
     <string name="nav_edit">Edit</string>
+    <string name="nav_log">Log</string>
+
+    <!-- Log Mode Strings -->
+    <string name="log_title">System- &amp; Debug-Logs</string>
+    <string name="log_clear">Logs leeren</string>
+    <string name="log_copy">Kopieren</string>
+    <string name="log_copied_toast">Logs in Zwischenablage kopiert</string>
+    <string name="log_empty">Keine Logs vorhanden. Vorgänge in der App werden hier für das Debugging protokolliert.</string>
+    <string name="log_filter_all">Alle</string>
+    <string name="log_filter_debug">Debug</string>
+    <string name="log_filter_info">Info</string>
+    <string name="log_filter_warn">Warn</string>
+    <string name="log_filter_error">Error</string>
+    <string name="log_auto_scroll">Auto-Scroll</string>
 
     <!-- Edit Mode Strings -->
     <string name="btn_edit_read">Lesen</string>

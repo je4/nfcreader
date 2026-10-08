@@ -23,9 +23,14 @@ import androidx.appcompat.app.AppCompatActivity
 import ch.infoage.nfcreader.R
 import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.databinding.ActivitySettingsBinding
+import ch.infoage.nfcreader.util.AppLogger
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class SettingsActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "SettingsActivity"
+    }
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var appSettings: AppSettings
@@ -35,6 +40,7 @@ class SettingsActivity : AppCompatActivity() {
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        AppLogger.i(TAG, "SettingsActivity opened")
         appSettings = AppSettings(this)
 
         setupToolbar()
@@ -120,6 +126,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         if (hasError) {
+            AppLogger.w(TAG, "saveCurrentSettings: validation errors present")
             return false
         }
 
@@ -140,6 +147,7 @@ class SettingsActivity : AppCompatActivity() {
             appSettings.writePassword = writePasswordInput
         }
         appSettings.debugMode = debugMode
+        AppLogger.i(TAG, "Settings saved: targetUrl=${appSettings.targetUrl}, method=$httpMethod, debugMode=$debugMode, useAfiPwd=${appSettings.useAfiPassword}")
         setResult(RESULT_OK)
         return true
     }

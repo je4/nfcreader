@@ -18,9 +18,9 @@ package ch.infoage.nfcreader.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import ch.infoage.nfcreader.util.AppLogger
 
 class AppSettings(context: Context) {
 
@@ -118,7 +118,7 @@ class AppSettings(context: Context) {
                 securePrefs.edit().remove(KEY_HTTP_METHOD).apply()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to migrate preferences", e)
+            AppLogger.e(TAG, "Failed to migrate preferences", e)
         }
     }
 
@@ -185,7 +185,7 @@ class AppSettings(context: Context) {
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize EncryptedSharedPreferences, falling back to standard preferences", e)
+                AppLogger.e(TAG, "Failed to initialize EncryptedSharedPreferences, falling back to standard preferences", e)
                 context.getSharedPreferences(SECURE_PREFS_NAME, Context.MODE_PRIVATE)
             }
         }

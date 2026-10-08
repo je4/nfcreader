@@ -16,6 +16,7 @@
 
 package ch.infoage.nfcreader.data.network
 
+import ch.infoage.nfcreader.util.AppLogger
 import org.json.JSONObject
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -24,6 +25,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 object JwtGenerator {
 
+    private const val TAG = "JwtGenerator"
     private const val ALGORITHM_HMAC_SHA256 = "HmacSHA256"
     const val DEFAULT_VALIDITY_SECONDS: Long = 60L
 
@@ -43,6 +45,7 @@ object JwtGenerator {
         customClaims: Map<String, Any> = emptyMap()
     ): String {
         require(secret.isNotBlank()) { "Secret key must not be blank" }
+        AppLogger.d(TAG, "generateToken: Generating JWT token (validity=${validitySeconds}s, customClaims=${customClaims.keys})")
 
         val headerJson = JSONObject().apply {
             put("alg", "HS256")

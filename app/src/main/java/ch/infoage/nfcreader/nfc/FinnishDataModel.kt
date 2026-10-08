@@ -16,6 +16,7 @@
 
 package ch.infoage.nfcreader.nfc
 
+import ch.infoage.nfcreader.util.AppLogger
 import java.nio.charset.StandardCharsets
 
 /**
@@ -66,6 +67,8 @@ data class FinnishLibraryData(
 
 object FinnishDataModelParser {
 
+    private const val TAG = "FinnishDataModelParser"
+
     /**
      * Parst die Rohdaten eines ISO 15693 Tags nach dem finnischen Datenmodell.
      * Benötigt für ein vollständiges Datenmodell mindestens 3 Bytes Headerdaten.
@@ -73,6 +76,7 @@ object FinnishDataModelParser {
      */
     fun parse(uidHex: String, data: ByteArray, afi: String? = null): FinnishLibraryData? {
         if (data.isEmpty()) {
+            AppLogger.d(TAG, "parse called with empty data for UID $uidHex")
             return null
         }
 

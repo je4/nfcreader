@@ -595,4 +595,33 @@ class NfcViewModelTest {
         viewModel.setUseWritePassword(false)
         assertFalse(viewModel.useWritePassword.value)
     }
+
+    @Test
+    fun testLogTabAndLogging() {
+        assertEquals(AppTab.SCAN, viewModel.currentTab.value)
+
+        // Switch to Log tab
+        viewModel.setTab(AppTab.LOG)
+        assertEquals(AppTab.LOG, viewModel.currentTab.value)
+        assertFalse(viewModel.isScanningActive.value)
+
+        // Switch back to Scan
+        viewModel.setTab(AppTab.SCAN)
+        assertEquals(AppTab.SCAN, viewModel.currentTab.value)
+
+        // Switch to Edit
+        viewModel.setTab(AppTab.EDIT)
+        assertEquals(AppTab.EDIT, viewModel.currentTab.value)
+        assertFalse(viewModel.isScanningActive.value)
+
+        // Test log filtering & clear in ViewModel
+        viewModel.setLogLevelFilter(ch.infoage.nfcreader.util.LogLevel.DEBUG)
+        assertEquals(ch.infoage.nfcreader.util.LogLevel.DEBUG, viewModel.logLevelFilter.value)
+
+        viewModel.setLogLevelFilter(null)
+        assertEquals(null, viewModel.logLevelFilter.value)
+
+        viewModel.clearLogs()
+        assertEquals(0, viewModel.logs.value.size)
+    }
 }

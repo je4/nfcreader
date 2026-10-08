@@ -19,6 +19,7 @@ package ch.infoage.nfcreader.nfc
 import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.nfc.tech.NfcV
+import ch.infoage.nfcreader.util.AppLogger
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -106,6 +107,8 @@ data class NfcVData(
 
 object Iso15693Parser {
 
+    private const val TAG = "Iso15693Parser"
+
     /**
      * Normalisiert eine UID / Bytefolge, indem ISO 15693 (NfcV) UIDs von LSB-first in MSB-first umgekehrt werden.
      */
@@ -149,6 +152,7 @@ object Iso15693Parser {
         // ISO 15693 UIDs are transmitted LSB first over the air; normalize to MSB first representation
         val uidBytes = normalizeUid(rawUidBytes, isIso15693)
         val uidHex = bytesToHex(uidBytes)
+        AppLogger.d(TAG, "parseTag: RawUID=${bytesToHex(rawUidBytes)}, NormalizedUID=$uidHex, isIso15693=$isIso15693")
 
         val tagType = if (isIso15693) resolveIso15693TagType(uidHex) else techList.joinToString(", ") { it.substringAfterLast('.') }
 
@@ -164,6 +168,10 @@ object Iso15693Parser {
         val libraryData = if (rawBlocks != null && rawBlocks.isNotEmpty()) {
             FinnishDataModelParser.parse(uidHex, rawBlocks, afi = afiHex)
         } else null
+
+        if (libraryData != null && !libraryData.isTagEmpty) {
+            AppLogger.i(TAG, "Finnish Library Data parsed: ItemID=${libraryData.itemId}, CRCValid=${libraryData.isCrcValid}, AFI=${libraryData.afi}")
+        }
 
         val rawPayloadHex = when {
             rawBlocks != null && rawBlocks.isNotEmpty() -> bytesToHex(rawBlocks)
@@ -366,6 +374,7 @@ object Iso15693Parser {
             nfcv.close()
 
             val blocks = outputStream.toByteArray()
+            AppLogger.d(TAG, "readNfcVData: Read ${blocks.size} block bytes, AFI=$afiHex, AfiPwdProtected=$isAfiPasswordProtected, DataWriteProtected=$isDataWriteProtected")
             NfcVData(
                 blocks = if (blocks.isNotEmpty()) blocks else null,
                 afiHex = afiHex,
@@ -373,6 +382,7 @@ object Iso15693Parser {
                 isDataWriteProtected = isDataWriteProtected
             )
         } catch (e: Exception) {
+            AppLogger.e(TAG, "readNfcVData error: ${e.message}", e)
             try {
                 nfcv.close()
             } catch (ignored: Exception) {}

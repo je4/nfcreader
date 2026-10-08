@@ -11,4 +11,9 @@
     <color name="status_pending">#F57C00</color>
     <color name="card_border">#E0E0E0</color>
     <color name="status_bar">#1565C0</color>
+    <color name="log_level_verbose">#757575</color>
+    <color name="log_level_debug">#0288D1</color>
+    <color name="log_level_info">#2E7D32</color>
+    <color name="log_level_warn">#EF6C00</color>
+    <color name="log_level_error">#C62828</color>
 </resources>
