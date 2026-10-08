@@ -640,4 +640,30 @@ class NfcViewModelTest {
         advanceUntilIdle()
         assertEquals("Bereit. Wählen Sie eine Aktion (z.B. 'Lesen').", viewModel.editStatus.value)
     }
+
+    @Test
+    fun testIsLoadingStateTransitionsDuringProcessScan() = runTest {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("OK")
+        )
+
+        viewModel.setUserText("Room 101")
+        viewModel.setTargetUrl(mockWebServer.url("/scan").toString())
+
+        assertEquals(false, viewModel.isLoading.value)
+
+        viewModel.processScan(
+            uid = "E004010012345678",
+            tagType = "ISO 15693",
+            content = "Item123"
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.isLoading.value)
+        assertNotNull(viewModel.lastScan.value)
+        assertTrue(viewModel.lastScan.value!!.isSuccess)
+    }
 }

@@ -233,6 +233,23 @@ class MainActivity : AppCompatActivity() {
     private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // Observe Loading State
+                launch {
+                    viewModel.isLoading.collectLatest { loading ->
+                        binding.progressBarGlobal.visibility = if (loading) View.VISIBLE else View.INVISIBLE
+                        binding.progressScan.visibility = if (loading) View.VISIBLE else View.GONE
+                        binding.progressEdit.visibility = if (loading) View.VISIBLE else View.GONE
+
+                        val hasLocation = viewModel.userText.value.isNotEmpty()
+                        binding.btnTestScan.isEnabled = hasLocation && !loading
+                        binding.btnEditTestScan.isEnabled = !loading
+                        binding.btnEditRead.isEnabled = !loading
+                        binding.btnEditWrite.isEnabled = !loading
+                        binding.btnEditToggleAfi.isEnabled = !loading
+                        binding.btnEditDisableAfiPassword.isEnabled = !loading
+                    }
+                }
+
                 // Observe User Text
                 launch {
                     viewModel.userText.collectLatest { text ->
@@ -648,10 +665,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateNfcStatus() {
         val hasLocation = viewModel.userText.value.isNotEmpty()
+        val notLoading = !viewModel.isLoading.value
         when (nfcManager.getAvailability()) {
             NfcReaderManager.NfcAvailability.ENABLED -> {
                 binding.switchContinuousScan.isEnabled = hasLocation
-                binding.btnTestScan.isEnabled = hasLocation
+                binding.btnTestScan.isEnabled = hasLocation && notLoading
                 binding.tvNfcStatus.text = if (viewModel.isScanningActive.value) {
                     getString(R.string.nfc_status_scanning)
                 } else if (!hasLocation) {

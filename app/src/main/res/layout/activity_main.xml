@@ -24,6 +24,15 @@
             app:title="@string/app_name"
             app:titleTextColor="@android:color/white" />
 
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progressBarGlobal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="invisible"
+            app:indicatorColor="@color/accent"
+            app:trackColor="@android:color/transparent" />
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout
@@ -204,6 +213,17 @@
                                 android:textColor="@color/primary_dark"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
+
+                            <com.google.android.material.progressindicator.CircularProgressIndicator
+                                android:id="@+id/progressScan"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="8dp"
+                                android:indeterminate="true"
+                                android:visibility="gone"
+                                app:indicatorSize="16dp"
+                                app:trackThickness="2dp"
+                                app:indicatorColor="@color/accent" />
 
                             <TextView
                                 android:id="@+id/tvLastScanTime"
@@ -444,14 +464,32 @@
                         android:orientation="vertical"
                         android:padding="12dp">
 
-                        <TextView
-                            android:id="@+id/tvEditStatus"
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="@string/edit_status_ready"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/tvEditStatus"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/edit_status_ready"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.progressindicator.CircularProgressIndicator
+                                android:id="@+id/progressEdit"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:indeterminate="true"
+                                android:visibility="gone"
+                                app:indicatorSize="20dp"
+                                app:trackThickness="3dp"
+                                app:indicatorColor="@color/accent" />
+                        </LinearLayout>
 
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

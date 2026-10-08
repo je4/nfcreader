@@ -160,6 +160,9 @@ class NfcViewModel(
     private val _pendingEditAction = MutableStateFlow(EditAction.NONE)
     val pendingEditAction: StateFlow<EditAction> = _pendingEditAction.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     private var pendingWriteData: FinnishLibraryData? = null
 
     // Keep track of the last processed scan data to prevent duplicate web-service calls for identical data
@@ -303,86 +306,103 @@ class NfcViewModel(
         }
 
         viewModelScope.launch(ioDispatcher) {
-            when (_pendingEditAction.value) {
-                EditAction.WRITE -> {
-                    val toWrite = pendingWriteData
-                    if (toWrite == null) {
-                        _editStatus.value = "Keine Daten zum Schreiben vorhanden."
-                        _editStatusType.value = EditStatusType.ERROR
-                        _pendingEditAction.value = EditAction.NONE
-                        return@launch
-                    }
+            _isLoading.value = true
+            try {
+                when (_pendingEditAction.value) {
+                    EditAction.WRITE -> {
+                        val toWrite = pendingWriteData
+                        if (toWrite == null) {
+                            _editStatus.value = "Keine Daten zum Schreiben vorhanden."
+                            _editStatusType.value = EditStatusType.ERROR
+                            _pendingEditAction.value = EditAction.NONE
+                            return@launch
+                        }
 
-                    val writeResult = Iso15693Writer.writeFinnishData(
-                        tag = tag,
-                        data = toWrite,
-                        useAfiPassword = _useAfiPassword.value,
-                        afiPasswordHex = _afiPassword.value,
-                        useWritePassword = _useWritePassword.value,
-                        writePasswordHex = _writePassword.value
-                    )
-                    if (writeResult.isSuccess) {
-                        val parsed = writeResult.getOrThrow()
-                        applyParsedEditTag(parsed)
-                        _editStatus.value = "Tag erfolgreich geschrieben!"
-                        _editStatusType.value = EditStatusType.SUCCESS
-                    } else {
-                        _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                        _editStatusType.value = EditStatusType.ERROR
+                        _editStatus.value = "Schreibe Tag..."
+                        _editStatusType.value = EditStatusType.PENDING
+
+                        val writeResult = Iso15693Writer.writeFinnishData(
+                            tag = tag,
+                            data = toWrite,
+                            useAfiPassword = _useAfiPassword.value,
+                            afiPasswordHex = _afiPassword.value,
+                            useWritePassword = _useWritePassword.value,
+                            writePasswordHex = _writePassword.value
+                        )
+                        if (writeResult.isSuccess) {
+                            val parsed = writeResult.getOrThrow()
+                            applyParsedEditTag(parsed)
+                            _editStatus.value = "Tag erfolgreich geschrieben!"
+                            _editStatusType.value = EditStatusType.SUCCESS
+                        } else {
+                            _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                            _editStatusType.value = EditStatusType.ERROR
+                        }
+                        _pendingEditAction.value = EditAction.NONE
+                        pendingWriteData = null
                     }
-                    _pendingEditAction.value = EditAction.NONE
-                    pendingWriteData = null
-                }
-                EditAction.TOGGLE_AFI -> {
-                    val toggleResult = Iso15693Writer.toggleAfi(
-                        tag = tag,
-                        useAfiPassword = _useAfiPassword.value,
-                        afiPasswordHex = _afiPassword.value
-                    )
-                    if (toggleResult.isSuccess) {
-                        val parsed = toggleResult.getOrThrow()
-                        applyParsedEditTag(parsed)
-                        val newAfi = parsed.afi ?: _editAfi.value
-                        _editStatus.value = "AFI erfolgreich auf $newAfi umgeschaltet und Tag gelesen!"
-                        _editStatusType.value = EditStatusType.SUCCESS
-                    } else {
-                        _editStatus.value = "Fehler beim Umschalten von AFI: ${toggleResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                        _editStatusType.value = EditStatusType.ERROR
+                    EditAction.TOGGLE_AFI -> {
+                        _editStatus.value = "Schalte AFI um..."
+                        _editStatusType.value = EditStatusType.PENDING
+
+                        val toggleResult = Iso15693Writer.toggleAfi(
+                            tag = tag,
+                            useAfiPassword = _useAfiPassword.value,
+                            afiPasswordHex = _afiPassword.value
+                        )
+                        if (toggleResult.isSuccess) {
+                            val parsed = toggleResult.getOrThrow()
+                            applyParsedEditTag(parsed)
+                            val newAfi = parsed.afi ?: _editAfi.value
+                            _editStatus.value = "AFI erfolgreich auf $newAfi umgeschaltet und Tag gelesen!"
+                            _editStatusType.value = EditStatusType.SUCCESS
+                        } else {
+                            _editStatus.value = "Fehler beim Umschalten von AFI: ${toggleResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                            _editStatusType.value = EditStatusType.ERROR
+                        }
+                        _pendingEditAction.value = EditAction.NONE
                     }
-                    _pendingEditAction.value = EditAction.NONE
-                }
-                EditAction.DISABLE_AFI_PASSWORD -> {
-                    val disableResult = Iso15693Writer.disableAfiPassword(
-                        tag = tag,
-                        afiPasswordHex = _afiPassword.value
-                    )
-                    if (disableResult.isSuccess) {
-                        val parsed = disableResult.getOrThrow()
-                        applyParsedEditTag(parsed)
-                        _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
-                        _editStatusType.value = EditStatusType.SUCCESS
-                    } else {
-                        _editStatus.value = "Fehler beim Deaktivieren des AFI-Passworts: ${disableResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                        _editStatusType.value = EditStatusType.ERROR
+                    EditAction.DISABLE_AFI_PASSWORD -> {
+                        _editStatus.value = "Deaktiviere AFI-Passwort..."
+                        _editStatusType.value = EditStatusType.PENDING
+
+                        val disableResult = Iso15693Writer.disableAfiPassword(
+                            tag = tag,
+                            afiPasswordHex = _afiPassword.value
+                        )
+                        if (disableResult.isSuccess) {
+                            val parsed = disableResult.getOrThrow()
+                            applyParsedEditTag(parsed)
+                            _editStatus.value = "AFI-Passwort erfolgreich entfernt / deaktiviert!"
+                            _editStatusType.value = EditStatusType.SUCCESS
+                        } else {
+                            _editStatus.value = "Fehler beim Deaktivieren des AFI-Passworts: ${disableResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                            _editStatusType.value = EditStatusType.ERROR
+                        }
+                        _pendingEditAction.value = EditAction.NONE
                     }
-                    _pendingEditAction.value = EditAction.NONE
-                }
-                EditAction.READ -> {
-                    val readResult = Iso15693Writer.readTag(tag)
-                    if (readResult.isSuccess) {
-                        val parsed = readResult.getOrThrow()
-                        applyParsedEditTag(parsed)
-                        _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
-                        _editStatusType.value = EditStatusType.SUCCESS
-                    } else {
-                        _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                        _editStatusType.value = EditStatusType.ERROR
+                    EditAction.READ -> {
+                        _editStatus.value = "Lese Tag..."
+                        _editStatusType.value = EditStatusType.PENDING
+
+                        val readResult = Iso15693Writer.readTag(tag)
+                        if (readResult.isSuccess) {
+                            val parsed = readResult.getOrThrow()
+                            applyParsedEditTag(parsed)
+                            _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
+                            _editStatusType.value = EditStatusType.SUCCESS
+                        } else {
+                            _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                            _editStatusType.value = EditStatusType.ERROR
+                        }
+                        _pendingEditAction.value = EditAction.NONE
                     }
-                    _pendingEditAction.value = EditAction.NONE
+                    EditAction.NONE -> {
+                        // Nur lesen, wenn der Button 'Lesen' gedrückt wurde
+                    }
                 }
-                EditAction.NONE -> {
-                    // Nur lesen, wenn der Button 'Lesen' gedrückt wurde
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -664,18 +684,51 @@ class NfcViewModel(
         lastScannedTime = now
 
         viewModelScope.launch(ioDispatcher) {
-            val jwtToken = if (currentKey.isNotBlank()) {
-                JwtGenerator.generateToken(
-                    secret = currentKey,
-                    validitySeconds = 60,
-                    issuedAtMillis = now
-                )
-            } else {
-                null
-            }
+            _isLoading.value = true
+            try {
+                val jwtToken = if (currentKey.isNotBlank()) {
+                    JwtGenerator.generateToken(
+                        secret = currentKey,
+                        validitySeconds = 60,
+                        issuedAtMillis = now
+                    )
+                } else {
+                    null
+                }
 
-            val preparedRequest = try {
-                urlDispatcher.prepareRequest(
+                val preparedRequest = try {
+                    urlDispatcher.prepareRequest(
+                        targetUrlTemplate = currentUrl,
+                        marker = currentText,
+                        nfcContent = content,
+                        rawPayloadHex = rawPayloadHex,
+                        uid = uid,
+                        httpMethod = currentMethod,
+                        jwtToken = jwtToken,
+                        jwtKey = currentKey,
+                        libraryData = libraryData,
+                        timestamp = now
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+
+                val pendingScan = NfcScanResult(
+                    uid = uid,
+                    tagType = tagType,
+                    content = content,
+                    rawPayloadHex = rawPayloadHex,
+                    location = currentText,
+                    requestUrl = preparedRequest?.fullUrl ?: currentUrl,
+                    httpMethod = currentMethod,
+                    jwtKey = currentKey.takeIf { it.isNotBlank() },
+                    requestHeaders = preparedRequest?.headers ?: emptyMap(),
+                    requestBody = preparedRequest?.body,
+                    httpRequestDebug = preparedRequest?.debugString,
+                    libraryData = libraryData
+                )
+
+                val result = urlDispatcher.dispatchScan(
                     targetUrlTemplate = currentUrl,
                     marker = currentText,
                     nfcContent = content,
@@ -684,62 +737,34 @@ class NfcViewModel(
                     httpMethod = currentMethod,
                     jwtToken = jwtToken,
                     jwtKey = currentKey,
-                    libraryData = libraryData,
-                    timestamp = now
+                    libraryData = libraryData
                 )
-            } catch (e: Exception) {
-                null
+
+                val completedScan = if (result.isSuccess) {
+                    val response = result.getOrThrow()
+                    pendingScan.copy(
+                        requestUrl = response.requestUrl,
+                        httpStatus = response.httpStatus,
+                        responseBody = response.responseBody,
+                        isSuccess = true,
+                        durationMs = response.durationMs,
+                        requestHeaders = response.requestHeaders.ifEmpty { pendingScan.requestHeaders },
+                        requestBody = response.requestBody ?: pendingScan.requestBody,
+                        httpRequestDebug = response.httpRequestDebug.ifBlank { pendingScan.httpRequestDebug }
+                    )
+                } else {
+                    val error = result.exceptionOrNull()
+                    pendingScan.copy(
+                        errorMessage = error?.localizedMessage ?: "Unbekannter Fehler",
+                        isSuccess = false
+                    )
+                }
+
+                _lastScan.value = completedScan
+                _scanHistory.value = listOf(completedScan) + _scanHistory.value
+            } finally {
+                _isLoading.value = false
             }
-
-            val pendingScan = NfcScanResult(
-                uid = uid,
-                tagType = tagType,
-                content = content,
-                rawPayloadHex = rawPayloadHex,
-                location = currentText,
-                requestUrl = preparedRequest?.fullUrl ?: currentUrl,
-                httpMethod = currentMethod,
-                jwtKey = currentKey.takeIf { it.isNotBlank() },
-                requestHeaders = preparedRequest?.headers ?: emptyMap(),
-                requestBody = preparedRequest?.body,
-                httpRequestDebug = preparedRequest?.debugString,
-                libraryData = libraryData
-            )
-
-            val result = urlDispatcher.dispatchScan(
-                targetUrlTemplate = currentUrl,
-                marker = currentText,
-                nfcContent = content,
-                rawPayloadHex = rawPayloadHex,
-                uid = uid,
-                httpMethod = currentMethod,
-                jwtToken = jwtToken,
-                jwtKey = currentKey,
-                libraryData = libraryData
-            )
-
-            val completedScan = if (result.isSuccess) {
-                val response = result.getOrThrow()
-                pendingScan.copy(
-                    requestUrl = response.requestUrl,
-                    httpStatus = response.httpStatus,
-                    responseBody = response.responseBody,
-                    isSuccess = true,
-                    durationMs = response.durationMs,
-                    requestHeaders = response.requestHeaders.ifEmpty { pendingScan.requestHeaders },
-                    requestBody = response.requestBody ?: pendingScan.requestBody,
-                    httpRequestDebug = response.httpRequestDebug.ifBlank { pendingScan.httpRequestDebug }
-                )
-            } else {
-                val error = result.exceptionOrNull()
-                pendingScan.copy(
-                    errorMessage = error?.localizedMessage ?: "Unbekannter Fehler",
-                    isSuccess = false
-                )
-            }
-
-            _lastScan.value = completedScan
-            _scanHistory.value = listOf(completedScan) + _scanHistory.value
         }
     }
 }
