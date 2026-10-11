@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import ch.infoage.nfcreader.data.local.AppSettings
 import ch.infoage.nfcreader.data.model.NfcScanResult
 import ch.infoage.nfcreader.data.network.JwtGenerator
+import ch.infoage.nfcreader.data.network.UrlBuilder
 import ch.infoage.nfcreader.data.network.UrlDispatcher
 import ch.infoage.nfcreader.nfc.FinnishDataModelParser
 import ch.infoage.nfcreader.nfc.FinnishLibraryData
@@ -68,6 +69,7 @@ private data class ScanDataSignature(
     val location: String,
     val targetUrl: String,
     val httpMethod: String,
+    val clientId: String,
     val libraryData: FinnishLibraryData?
 )
 
@@ -95,6 +97,9 @@ class NfcViewModel(
 
     private val _httpMethod = MutableStateFlow("GET")
     val httpMethod: StateFlow<String> = _httpMethod.asStateFlow()
+
+    private val _clientId = MutableStateFlow("")
+    val clientId: StateFlow<String> = _clientId.asStateFlow()
 
     private val _jwtKey = MutableStateFlow("")
     val jwtKey: StateFlow<String> = _jwtKey.asStateFlow()
@@ -201,6 +206,10 @@ class NfcViewModel(
 
     fun setHttpMethod(method: String) {
         _httpMethod.value = method
+    }
+
+    fun setClientId(id: String) {
+        _clientId.value = id
     }
 
     fun setJwtKey(key: String) {
@@ -659,6 +668,7 @@ class NfcViewModel(
         val currentText = _userText.value
         val currentUrl = _targetUrl.value
         val currentMethod = _httpMethod.value
+        val currentClientId = _clientId.value.ifBlank { UrlBuilder.getDeviceName() }
         val currentKey = _jwtKey.value
 
         val currentData = ScanDataSignature(
@@ -668,6 +678,7 @@ class NfcViewModel(
             location = currentText,
             targetUrl = currentUrl,
             httpMethod = currentMethod,
+            clientId = currentClientId,
             libraryData = libraryData
         )
 
@@ -687,10 +698,17 @@ class NfcViewModel(
             _isLoading.value = true
             try {
                 val jwtToken = if (currentKey.isNotBlank()) {
+                    val customClaims = mutableMapOf<String, Any>()
+                    if (currentClientId.isNotBlank()) {
+                        customClaims["client_id"] = currentClientId.trim()
+                    }
+                    val subject = uid.takeIf { it.isNotBlank() }?.trim()
                     JwtGenerator.generateToken(
                         secret = currentKey,
+                        subject = subject,
                         validitySeconds = 60,
-                        issuedAtMillis = now
+                        issuedAtMillis = now,
+                        customClaims = customClaims
                     )
                 } else {
                     null
@@ -707,7 +725,8 @@ class NfcViewModel(
                         jwtToken = jwtToken,
                         jwtKey = currentKey,
                         libraryData = libraryData,
-                        timestamp = now
+                        timestamp = now,
+                        clientId = currentClientId
                     )
                 } catch (e: Exception) {
                     null
@@ -737,7 +756,8 @@ class NfcViewModel(
                     httpMethod = currentMethod,
                     jwtToken = jwtToken,
                     jwtKey = currentKey,
-                    libraryData = libraryData
+                    libraryData = libraryData,
+                    clientId = currentClientId
                 )
 
                 val completedScan = if (result.isSuccess) {

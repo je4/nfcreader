@@ -69,6 +69,9 @@ class NfcViewModelTest {
         viewModel.setHttpMethod("POST")
         assertEquals("POST", viewModel.httpMethod.value)
 
+        viewModel.setClientId("Station-42")
+        assertEquals("Station-42", viewModel.clientId.value)
+
         viewModel.setJwtKey("test.jwt.key")
         assertEquals("test.jwt.key", viewModel.jwtKey.value)
 
@@ -197,6 +200,7 @@ class NfcViewModelTest {
         val serverUrl = mockWebServer.url("/post-debug").toString()
         viewModel.setTargetUrl(serverUrl)
         viewModel.setHttpMethod("POST")
+        viewModel.setClientId("Station-42")
         viewModel.setUserText("DebugUserText")
         viewModel.setJwtKey("secret123")
         viewModel.setDebugMode(true)
@@ -220,12 +224,17 @@ class NfcViewModelTest {
         assertTrue(authHeader!!.startsWith("Bearer eyJ"))
         val token = authHeader.removePrefix("Bearer ")
         assertTrue(JwtGenerator.verifySignature(token, "secret123"))
+        val jwtPayload = JwtGenerator.parsePayload(token)
+        assertEquals("E004015099999999", jwtPayload?.getString("sub"))
+        assertEquals("Station-42", jwtPayload?.getString("client_id"))
 
         assertTrue(lastScan.requestBody?.contains("\"marker\":\"DebugUserText\"") == true)
+        assertTrue(lastScan.requestBody?.contains("\"clientId\":\"Station-42\"") == true)
         assertTrue(lastScan.requestBody?.contains("\"raw\":\"AABBCCDD\"") == true)
         assertTrue(lastScan.httpRequestDebug?.contains("Method: POST") == true)
         assertTrue(lastScan.httpRequestDebug?.contains("Authorization: Bearer eyJ") == true)
         assertTrue(lastScan.httpRequestDebug?.contains("\"marker\":\"DebugUserText\"") == true)
+        assertTrue(lastScan.httpRequestDebug?.contains("\"clientId\":\"Station-42\"") == true)
     }
 
     @Test

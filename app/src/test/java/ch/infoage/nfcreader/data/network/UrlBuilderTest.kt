@@ -231,4 +231,47 @@ class UrlBuilderTest {
         assertTrue(result.contains("itemid=3011000123"))
         assertTrue(result.contains("raw=0102030405"))
     }
+
+    @Test
+    fun testBuildUrlWithClientIdPlaceholders() {
+        val template = "https://example.com/scan?c1={clientid}&c2={client_id}&c3={clientId}&c4={client}&uid={uid}"
+        val result = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = template,
+            uid = "E004",
+            clientId = "Station Alpha"
+        )
+        assertEquals(
+            "https://example.com/scan?c1=Station+Alpha&c2=Station+Alpha&c3=Station+Alpha&c4=Station+Alpha&uid=E004",
+            result
+        )
+    }
+
+    @Test
+    fun testBuildUrlWithClientIdAppendedForGet() {
+        val baseUrl = "https://example.com/scan"
+        val result = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = baseUrl,
+            marker = "Test",
+            rawPayloadHex = "1234",
+            uid = "E004",
+            session = "S1",
+            clientId = "Station-1"
+        )
+        assertTrue(result.contains("clientid=Station-1"))
+        assertTrue(result.contains("marker=Test"))
+    }
+
+    @Test
+    fun testBuildUrlForPostAppendsClientIdWhenNoPlaceholders() {
+        val baseUrl = "https://example.com/scan"
+        val result = UrlBuilder.buildUrl(
+            baseUrlOrTemplate = baseUrl,
+            marker = "Test",
+            rawPayloadHex = "1234",
+            uid = "E004",
+            httpMethod = "POST",
+            clientId = "Station-1"
+        )
+        assertEquals("https://example.com/scan?clientid=Station-1", result)
+    }
 }

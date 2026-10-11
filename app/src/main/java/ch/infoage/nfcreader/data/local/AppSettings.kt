@@ -20,6 +20,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import ch.infoage.nfcreader.data.network.UrlBuilder
 import ch.infoage.nfcreader.util.AppLogger
 
 class AppSettings(context: Context) {
@@ -38,6 +39,13 @@ class AppSettings(context: Context) {
     var httpMethod: String
         get() = prefs.getString(KEY_HTTP_METHOD, DEFAULT_HTTP_METHOD) ?: DEFAULT_HTTP_METHOD
         set(value) = prefs.edit().putString(KEY_HTTP_METHOD, value.trim()).apply()
+
+    var clientId: String
+        get() {
+            val stored = prefs.getString(KEY_CLIENT_ID, null)
+            return if (!stored.isNullOrBlank()) stored else UrlBuilder.getDeviceName()
+        }
+        set(value) = prefs.edit().putString(KEY_CLIENT_ID, value.trim()).apply()
 
     var jwtKey: String
         get() = securePrefs.getString(KEY_JWT_KEY, "") ?: ""
@@ -129,6 +137,7 @@ class AppSettings(context: Context) {
 
         private const val KEY_TARGET_URL = "target_url"
         private const val KEY_HTTP_METHOD = "http_method"
+        private const val KEY_CLIENT_ID = "client_id"
         private const val KEY_JWT_KEY = "jwt_key"
         private const val KEY_DEBUG_MODE = "debug_mode"
         private const val KEY_AFI_PASSWORD = "afi_password"

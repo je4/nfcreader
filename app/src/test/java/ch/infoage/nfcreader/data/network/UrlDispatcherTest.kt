@@ -105,6 +105,58 @@ class UrlDispatcherTest {
     }
 
     @Test
+    fun testPostDispatchWithClientId() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"created\":true}")
+        )
+
+        val baseUrl = mockWebServer.url("/api/post-scan").toString()
+        val result = urlDispatcher.dispatchScan(
+            targetUrlTemplate = baseUrl,
+            marker = "ScannerPost",
+            rawPayloadHex = "ISO15693-VALUE",
+            uid = "E00401509988",
+            httpMethod = "POST",
+            session = "Handheld_20261003",
+            clientId = "Station-99"
+        )
+
+        assertTrue(result.isSuccess)
+        val recordedRequest = mockWebServer.takeRequest()
+        assertEquals("POST", recordedRequest.method)
+        assertEquals("/api/post-scan?clientid=Station-99", recordedRequest.path)
+        val bodyText = recordedRequest.body.readUtf8()
+        assertTrue(bodyText.contains("\"clientId\":\"Station-99\""))
+    }
+
+    @Test
+    fun testGetDispatchWithClientId() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"status\":\"ok\"}")
+        )
+
+        val baseUrl = mockWebServer.url("/scan").toString()
+        val result = urlDispatcher.dispatchScan(
+            targetUrlTemplate = baseUrl,
+            marker = "Scanner1",
+            nfcContent = "TAG-VALUE-123",
+            uid = "E004015011223344",
+            httpMethod = "GET",
+            session = "Device_20261003",
+            clientId = "Station-1"
+        )
+
+        assertTrue(result.isSuccess)
+        val recordedRequest = mockWebServer.takeRequest()
+        assertEquals("GET", recordedRequest.method)
+        assertTrue(recordedRequest.path?.contains("clientid=Station-1") == true)
+    }
+
+    @Test
     fun testDispatchWithJwtTokenSetsAuthHeader() = runBlocking {
         mockWebServer.enqueue(
             MockResponse()

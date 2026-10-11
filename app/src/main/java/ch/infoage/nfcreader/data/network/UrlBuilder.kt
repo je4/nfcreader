@@ -29,9 +29,9 @@ object UrlBuilder {
     /**
      * Builds the target URL containing the marker, session, and NFC content.
      * Supports both template placeholders ({marker}, {session}, {text}, {raw}, {uid}, {timestamp}, {ts}, {jwt},
-     * {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}) and
+     * {itemid}, {afi}, {country}, {isil}, {parts}, {partno}, {usagetype}, {version}, {clientid}, {client_id}, {clientId}, {client}) and
      * automatic query parameter appending if placeholders are not present (for GET requests).
-     * For POST requests, query parameters are omitted.
+     * For POST requests, query parameters are omitted unless clientid is present.
      */
     fun buildUrl(
         baseUrlOrTemplate: String,
@@ -45,7 +45,8 @@ object UrlBuilder {
         session: String = "",
         deviceName: String = "",
         httpMethod: String = "GET",
-        userText: String = ""
+        userText: String = "",
+        clientId: String = ""
     ): String {
         val trimmed = baseUrlOrTemplate.trim()
         if (trimmed.isEmpty()) {
@@ -70,28 +71,7 @@ object UrlBuilder {
         val encodedPartNo = encode(libraryData?.partNo?.toString().orEmpty())
         val encodedUsageType = encode(libraryData?.usageType?.toString().orEmpty())
         val encodedVersion = encode(libraryData?.version?.toString().orEmpty())
-
-        if (httpMethod.equals("POST", ignoreCase = true)) {
-            // Beim POST-Aufruf sollen keine GET-Parameter vorhanden sein
-            val pathPart = trimmed.substringBefore('?')
-            return pathPart
-                .replace("{marker}", encodedMarker)
-                .replace("{text}", encodedMarker)
-                .replace("{session}", encodedSession)
-                .replace("{raw}", encodedRaw)
-                .replace("{uid}", encodedUid)
-                .replace("{timestamp}", encodedTimestamp)
-                .replace("{ts}", encodedTimestamp)
-                .replace("{jwt}", encodedJwt)
-                .replace("{itemid}", encodedItemId)
-                .replace("{afi}", encodedAfi)
-                .replace("{country}", encodedCountry)
-                .replace("{isil}", encodedIsil)
-                .replace("{parts}", encodedParts)
-                .replace("{partno}", encodedPartNo)
-                .replace("{usagetype}", encodedUsageType)
-                .replace("{version}", encodedVersion)
-        }
+        val encodedClientId = encode(clientId.trim())
 
         val hasPlaceholders = trimmed.contains("{marker}") ||
                 trimmed.contains("{text}") ||
@@ -108,10 +88,14 @@ object UrlBuilder {
                 trimmed.contains("{parts}") ||
                 trimmed.contains("{partno}") ||
                 trimmed.contains("{usagetype}") ||
-                trimmed.contains("{version}")
+                trimmed.contains("{version}") ||
+                trimmed.contains("{clientid}") ||
+                trimmed.contains("{client_id}") ||
+                trimmed.contains("{clientId}") ||
+                trimmed.contains("{client}")
 
-        return if (hasPlaceholders) {
-            trimmed
+        if (hasPlaceholders) {
+            return trimmed
                 .replace("{marker}", encodedMarker)
                 .replace("{text}", encodedMarker)
                 .replace("{session}", encodedSession)
@@ -128,15 +112,31 @@ object UrlBuilder {
                 .replace("{partno}", encodedPartNo)
                 .replace("{usagetype}", encodedUsageType)
                 .replace("{version}", encodedVersion)
-        } else {
-            val delimiter = if (trimmed.contains("?")) "&" else "?"
-            val baseParams = "$trimmed${delimiter}marker=$encodedMarker&session=$encodedSession&raw=$encodedRaw&uid=$encodedUid&ts=$encodedTimestamp"
-            if (libraryData != null && !libraryData.isTagEmpty) {
-                val afiParam = if (encodedAfi.isNotBlank()) "&afi=$encodedAfi" else ""
-                "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion$afiParam"
-            } else {
-                baseParams
+                .replace("{clientid}", encodedClientId)
+                .replace("{client_id}", encodedClientId)
+                .replace("{clientId}", encodedClientId)
+                .replace("{client}", encodedClientId)
+        }
+
+        if (httpMethod.equals("POST", ignoreCase = true)) {
+            val pathPart = trimmed.substringBefore('?')
+            if (encodedClientId.isNotEmpty() && !pathPart.contains("clientid=") && !pathPart.contains("client_id=")) {
+                val delimiter = if (pathPart.contains("?")) "&" else "?"
+                return "$pathPart${delimiter}clientid=$encodedClientId"
             }
+            return pathPart
+        }
+
+        val delimiter = if (trimmed.contains("?")) "&" else "?"
+        var baseParams = "$trimmed${delimiter}marker=$encodedMarker&session=$encodedSession&raw=$encodedRaw&uid=$encodedUid&ts=$encodedTimestamp"
+        if (encodedClientId.isNotEmpty() && !trimmed.contains("clientid=") && !trimmed.contains("client_id=")) {
+            baseParams += "&clientid=$encodedClientId"
+        }
+        return if (libraryData != null && !libraryData.isTagEmpty) {
+            val afiParam = if (encodedAfi.isNotBlank()) "&afi=$encodedAfi" else ""
+            "$baseParams&itemid=$encodedItemId&country=$encodedCountry&isil=$encodedIsil&parts=$encodedParts&partno=$encodedPartNo&usagetype=$encodedUsageType&version=$encodedVersion$afiParam"
+        } else {
+            baseParams
         }
     }
 

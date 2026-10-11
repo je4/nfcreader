@@ -45,7 +45,6 @@ class SettingsActivity : AppCompatActivity() {
 
         setupToolbar()
         loadSettings()
-        setupListeners()
         setupBackHandler()
     }
 
@@ -86,6 +85,7 @@ class SettingsActivity : AppCompatActivity() {
         } else {
             binding.rbSettingsGet.isChecked = true
         }
+        binding.etSettingsClientId.setText(appSettings.clientId)
         binding.etSettingsJwtKey.setText(appSettings.jwtKey)
         binding.switchSettingsUseAfiPassword.isChecked = appSettings.useAfiPassword
         binding.etSettingsAfiPassword.setText(appSettings.afiPassword)
@@ -95,15 +95,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.etSettingsWritePassword.setText(appSettings.writePassword)
         binding.etSettingsWritePassword.isEnabled = false
         binding.switchSettingsDebugMode.isChecked = appSettings.debugMode
-    }
-
-    private fun setupListeners() {
-        binding.btnSaveSettings.setOnClickListener {
-            if (saveCurrentSettings()) {
-                Toast.makeText(this, R.string.settings_saved_toast, Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        }
     }
 
     private fun saveCurrentSettings(): Boolean {
@@ -132,11 +123,13 @@ class SettingsActivity : AppCompatActivity() {
 
         val targetUrl = binding.etSettingsTargetUrl.text?.toString().orEmpty().trim()
         val httpMethod = if (binding.rbSettingsPost.isChecked) "POST" else "GET"
+        val clientId = binding.etSettingsClientId.text?.toString().orEmpty().trim()
         val jwtKey = binding.etSettingsJwtKey.text?.toString().orEmpty().trim()
         val debugMode = binding.switchSettingsDebugMode.isChecked
 
         appSettings.targetUrl = if (targetUrl.isNotBlank()) targetUrl else AppSettings.DEFAULT_TARGET_URL
         appSettings.httpMethod = httpMethod
+        appSettings.clientId = clientId
         appSettings.jwtKey = jwtKey
         appSettings.useAfiPassword = binding.switchSettingsUseAfiPassword.isChecked
         appSettings.afiPassword = afiPasswordInput
@@ -147,7 +140,7 @@ class SettingsActivity : AppCompatActivity() {
             appSettings.writePassword = writePasswordInput
         }
         appSettings.debugMode = debugMode
-        AppLogger.i(TAG, "Settings saved: targetUrl=${appSettings.targetUrl}, method=$httpMethod, debugMode=$debugMode, useAfiPwd=${appSettings.useAfiPassword}")
+        AppLogger.i(TAG, "Settings saved: targetUrl=${appSettings.targetUrl}, method=$httpMethod, clientId=${appSettings.clientId}, debugMode=$debugMode, useAfiPwd=${appSettings.useAfiPassword}")
         setResult(RESULT_OK)
         return true
     }

@@ -61,10 +61,12 @@ class UrlDispatcher(
         libraryData: FinnishLibraryData? = null,
         session: String = "",
         deviceName: String = "",
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        clientId: String = ""
     ): PreparedRequest {
         val actualMarker = marker.ifBlank { userText }
         val actualSession = session.ifBlank { UrlBuilder.generateSession(deviceName, timestamp) }
+        val actualClientId = clientId.ifBlank { deviceName.ifBlank { UrlBuilder.getDeviceName() } }.trim()
 
         val fullUrl = UrlBuilder.buildUrl(
             baseUrlOrTemplate = targetUrlTemplate,
@@ -77,7 +79,8 @@ class UrlDispatcher(
             nfcContent = nfcContent,
             session = actualSession,
             deviceName = deviceName,
-            httpMethod = httpMethod
+            httpMethod = httpMethod,
+            clientId = actualClientId
         )
 
         if (fullUrl.isBlank()) {
@@ -96,6 +99,9 @@ class UrlDispatcher(
                 put("timestamp", timestamp)
                 if (!jwtToken.isNullOrBlank()) {
                     put("jwt", jwtToken)
+                }
+                if (actualClientId.isNotBlank()) {
+                    put("clientId", actualClientId)
                 }
                 if (libraryData != null && !libraryData.isTagEmpty) {
                     put("itemId", libraryData.itemId)
@@ -172,7 +178,8 @@ class UrlDispatcher(
         jwtKey: String? = null,
         libraryData: FinnishLibraryData? = null,
         session: String = "",
-        deviceName: String = ""
+        deviceName: String = "",
+        clientId: String = ""
     ): Result<ScanResponse> = withContext(dispatcher) {
         val startTime = System.currentTimeMillis()
         try {
@@ -189,7 +196,8 @@ class UrlDispatcher(
                 libraryData = libraryData,
                 session = session,
                 deviceName = deviceName,
-                timestamp = startTime
+                timestamp = startTime,
+                clientId = clientId
             )
 
             AppLogger.i(TAG, "Dispatching HTTP ${prepared.httpMethod} -> ${prepared.fullUrl}")

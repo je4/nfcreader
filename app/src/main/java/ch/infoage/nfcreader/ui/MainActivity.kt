@@ -594,6 +594,7 @@ class MainActivity : AppCompatActivity() {
         // Sync preferences with ViewModel
         viewModel.setTargetUrl(appSettings.targetUrl)
         viewModel.setHttpMethod(appSettings.httpMethod)
+        viewModel.setClientId(appSettings.clientId)
         viewModel.setJwtKey(appSettings.jwtKey)
         viewModel.setDebugMode(appSettings.debugMode)
         viewModel.setAfiPassword(appSettings.afiPassword)

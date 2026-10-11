@@ -88,6 +88,25 @@ class JwtGeneratorTest {
         assertTrue(JwtGenerator.verifySignature(token, secretKey))
     }
 
+    @Test
+    fun testTokenWithSubjectAndClientId() {
+        val secretKey = "subject-and-client-key"
+        val customClaims = mapOf(
+            "client_id" to "Station-10"
+        )
+        val token = JwtGenerator.generateToken(
+            secret = secretKey,
+            subject = "E004015099887766",
+            customClaims = customClaims
+        )
+
+        val payload = JwtGenerator.parsePayload(token)
+        assertNotNull(payload)
+        assertEquals("E004015099887766", payload?.getString("sub"))
+        assertEquals("Station-10", payload?.getString("client_id"))
+        assertTrue(JwtGenerator.verifySignature(token, secretKey))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun testBlankSecretThrowsException() {
         JwtGenerator.generateToken(secret = "   ")

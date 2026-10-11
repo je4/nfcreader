@@ -33,6 +33,7 @@ object JwtGenerator {
      * Generates a signed JWT token using the HS256 algorithm.
      *
      * @param secret Secret key used for signing (HMAC-SHA256)
+     * @param subject Optional subject claim (sub)
      * @param validitySeconds Token validity duration in seconds (defaults to 60 seconds / 1 minute)
      * @param issuedAtMillis Timestamp in milliseconds when the token is issued (defaults to current time)
      * @param customClaims Optional map of additional claims to include in the payload
@@ -40,12 +41,13 @@ object JwtGenerator {
      */
     fun generateToken(
         secret: String,
+        subject: String? = null,
         validitySeconds: Long = DEFAULT_VALIDITY_SECONDS,
         issuedAtMillis: Long = System.currentTimeMillis(),
         customClaims: Map<String, Any> = emptyMap()
     ): String {
         require(secret.isNotBlank()) { "Secret key must not be blank" }
-        AppLogger.d(TAG, "generateToken: Generating JWT token (validity=${validitySeconds}s, customClaims=${customClaims.keys})")
+        AppLogger.d(TAG, "generateToken: Generating JWT token (subject=$subject, validity=${validitySeconds}s, customClaims=${customClaims.keys})")
 
         val headerJson = JSONObject().apply {
             put("alg", "HS256")
@@ -58,7 +60,11 @@ object JwtGenerator {
         val payloadJson = JSONObject().apply {
             put("iat", iatSeconds)
             put("exp", expSeconds)
+            if (!subject.isNullOrBlank()) {
+                put("sub", subject.trim())
+            }
             for ((key, value) in customClaims) {
+                if (key == "sub" && !subject.isNullOrBlank()) continue
                 put(key, value)
             }
         }
@@ -72,6 +78,22 @@ object JwtGenerator {
 
         return "$contentToSign.$encodedSignature"
     }
+
+    /**
+     * Generates a signed JWT token without explicit subject.
+     */
+    fun generateToken(
+        secret: String,
+        validitySeconds: Long = DEFAULT_VALIDITY_SECONDS,
+        issuedAtMillis: Long = System.currentTimeMillis(),
+        customClaims: Map<String, Any> = emptyMap()
+    ): String = generateToken(
+        secret = secret,
+        subject = null,
+        validitySeconds = validitySeconds,
+        issuedAtMillis = issuedAtMillis,
+        customClaims = customClaims
+    )
 
     private fun signHmacSha256(data: String, secret: String): ByteArray {
         val mac = Mac.getInstance(ALGORITHM_HMAC_SHA256)
