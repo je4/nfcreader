@@ -25,8 +25,10 @@ import android.nfc.Tag
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
@@ -41,6 +43,7 @@ import ch.infoage.nfcreader.nfc.FinnishLibraryData
 import ch.infoage.nfcreader.nfc.NfcReaderManager
 import ch.infoage.nfcreader.util.AppLogger
 import ch.infoage.nfcreader.util.LogLevel
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -56,6 +59,8 @@ class MainActivity : AppCompatActivity() {
     private val historyAdapter = ScanHistoryAdapter()
     private val logAdapter = LogEntryAdapter()
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private var readingTagDialog: AlertDialog? = null
+    private var writingTagDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -238,7 +243,6 @@ class MainActivity : AppCompatActivity() {
                     viewModel.isLoading.collectLatest { loading ->
                         binding.progressBarGlobal.visibility = if (loading) View.VISIBLE else View.INVISIBLE
                         binding.progressScan.visibility = if (loading) View.VISIBLE else View.GONE
-                        binding.progressEdit.visibility = if (loading) View.VISIBLE else View.GONE
 
                         val hasLocation = viewModel.userText.value.isNotEmpty()
                         binding.btnTestScan.isEnabled = hasLocation && !loading
@@ -247,6 +251,28 @@ class MainActivity : AppCompatActivity() {
                         binding.btnEditWrite.isEnabled = !loading
                         binding.btnEditToggleAfi.isEnabled = !loading
                         binding.btnEditDisableAfiPassword.isEnabled = !loading
+                    }
+                }
+
+                // Observe Tag Reading State
+                launch {
+                    viewModel.isReadingTag.collectLatest { isReading ->
+                        if (isReading) {
+                            showReadingTagDialog()
+                        } else {
+                            hideReadingTagDialog()
+                        }
+                    }
+                }
+
+                // Observe Tag Writing State
+                launch {
+                    viewModel.isWritingTag.collectLatest { isWriting ->
+                        if (isWriting) {
+                            showWritingTagDialog()
+                        } else {
+                            hideWritingTagDialog()
+                        }
                     }
                 }
 
@@ -699,6 +725,46 @@ class MainActivity : AppCompatActivity() {
             clipboard.setPrimaryClip(clip)
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showReadingTagDialog() {
+        if (readingTagDialog?.isShowing == true || isFinishing || isDestroyed) return
+        val dialogView = layoutInflater.inflate(R.layout.dialog_reading_tag, null)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.tvReadingMessage)
+        tvMessage.setText(R.string.reading_tag_message)
+        readingTagDialog = MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        readingTagDialog?.show()
+    }
+
+    private fun hideReadingTagDialog() {
+        readingTagDialog?.dismiss()
+        readingTagDialog = null
+    }
+
+    private fun showWritingTagDialog() {
+        if (writingTagDialog?.isShowing == true || isFinishing || isDestroyed) return
+        val dialogView = layoutInflater.inflate(R.layout.dialog_reading_tag, null)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.tvReadingMessage)
+        tvMessage.setText(R.string.writing_tag_message)
+        writingTagDialog = MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        writingTagDialog?.show()
+    }
+
+    private fun hideWritingTagDialog() {
+        writingTagDialog?.dismiss()
+        writingTagDialog = null
+    }
+
+    override fun onDestroy() {
+        hideReadingTagDialog()
+        hideWritingTagDialog()
+        super.onDestroy()
     }
 
     companion object {

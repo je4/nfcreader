@@ -115,6 +115,12 @@
     <string name="edit_afi_secured">07 (Gesichert)</string>
     <string name="edit_afi_loaned">C2 (Ausgeliehen)</string>
 
+    <!-- NFC Reading & Writing Dialogs -->
+    <string name="reading_tag_title">Reading Tag</string>
+    <string name="reading_tag_message">Reading tag, please wait…</string>
+    <string name="writing_tag_title">Writing Tag</string>
+    <string name="writing_tag_message">Writing tag, please wait…</string>
+
     <!-- About / Copyright -->
     <string name="copyright_notice">© 2026 info-age GmbH, Basel\nLizenziert unter Apache License 2.0</string>
 </resources>

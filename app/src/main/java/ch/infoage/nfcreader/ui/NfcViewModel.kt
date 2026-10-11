@@ -168,6 +168,12 @@ class NfcViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _isReadingTag = MutableStateFlow(false)
+    val isReadingTag: StateFlow<Boolean> = _isReadingTag.asStateFlow()
+
+    private val _isWritingTag = MutableStateFlow(false)
+    val isWritingTag: StateFlow<Boolean> = _isWritingTag.asStateFlow()
+
     private var pendingWriteData: FinnishLibraryData? = null
 
     // Keep track of the last processed scan data to prevent duplicate web-service calls for identical data
@@ -286,16 +292,21 @@ class NfcViewModel(
             if (!_isScanningActive.value || _userText.value.isEmpty()) return
 
             viewModelScope.launch(ioDispatcher) {
-                val parsed = Iso15693Parser.parseTag(tag)
-                val content = parsed.textContent ?: parsed.rawPayloadHex
+                _isReadingTag.value = true
+                try {
+                    val parsed = Iso15693Parser.parseTag(tag)
+                    val content = parsed.textContent ?: parsed.rawPayloadHex
 
-                processScan(
-                    uid = parsed.uid,
-                    tagType = parsed.tagType,
-                    content = content,
-                    rawPayloadHex = parsed.rawPayloadHex,
-                    libraryData = parsed.libraryData
-                )
+                    processScan(
+                        uid = parsed.uid,
+                        tagType = parsed.tagType,
+                        content = content,
+                        rawPayloadHex = parsed.rawPayloadHex,
+                        libraryData = parsed.libraryData
+                    )
+                } finally {
+                    _isReadingTag.value = false
+                }
             }
         } else {
             handleEditTagDiscovered(tag)
@@ -327,25 +338,30 @@ class NfcViewModel(
                             return@launch
                         }
 
+                        _isWritingTag.value = true
                         _editStatus.value = "Schreibe Tag..."
                         _editStatusType.value = EditStatusType.PENDING
 
-                        val writeResult = Iso15693Writer.writeFinnishData(
-                            tag = tag,
-                            data = toWrite,
-                            useAfiPassword = _useAfiPassword.value,
-                            afiPasswordHex = _afiPassword.value,
-                            useWritePassword = _useWritePassword.value,
-                            writePasswordHex = _writePassword.value
-                        )
-                        if (writeResult.isSuccess) {
-                            val parsed = writeResult.getOrThrow()
-                            applyParsedEditTag(parsed)
-                            _editStatus.value = "Tag erfolgreich geschrieben!"
-                            _editStatusType.value = EditStatusType.SUCCESS
-                        } else {
-                            _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                            _editStatusType.value = EditStatusType.ERROR
+                        try {
+                            val writeResult = Iso15693Writer.writeFinnishData(
+                                tag = tag,
+                                data = toWrite,
+                                useAfiPassword = _useAfiPassword.value,
+                                afiPasswordHex = _afiPassword.value,
+                                useWritePassword = _useWritePassword.value,
+                                writePasswordHex = _writePassword.value
+                            )
+                            if (writeResult.isSuccess) {
+                                val parsed = writeResult.getOrThrow()
+                                applyParsedEditTag(parsed)
+                                _editStatus.value = "Tag erfolgreich geschrieben!"
+                                _editStatusType.value = EditStatusType.SUCCESS
+                            } else {
+                                _editStatus.value = "Fehler beim Schreiben: ${writeResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                                _editStatusType.value = EditStatusType.ERROR
+                            }
+                        } finally {
+                            _isWritingTag.value = false
                         }
                         _pendingEditAction.value = EditAction.NONE
                         pendingWriteData = null
@@ -391,18 +407,23 @@ class NfcViewModel(
                         _pendingEditAction.value = EditAction.NONE
                     }
                     EditAction.READ -> {
+                        _isReadingTag.value = true
                         _editStatus.value = "Lese Tag..."
                         _editStatusType.value = EditStatusType.PENDING
 
-                        val readResult = Iso15693Writer.readTag(tag)
-                        if (readResult.isSuccess) {
-                            val parsed = readResult.getOrThrow()
-                            applyParsedEditTag(parsed)
-                            _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
-                            _editStatusType.value = EditStatusType.SUCCESS
-                        } else {
-                            _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
-                            _editStatusType.value = EditStatusType.ERROR
+                        try {
+                            val readResult = Iso15693Writer.readTag(tag)
+                            if (readResult.isSuccess) {
+                                val parsed = readResult.getOrThrow()
+                                applyParsedEditTag(parsed)
+                                _editStatus.value = "Tag erfolgreich gelesen (UID: ${parsed.uid})"
+                                _editStatusType.value = EditStatusType.SUCCESS
+                            } else {
+                                _editStatus.value = "Fehler beim Lesen: ${readResult.exceptionOrNull()?.message ?: "Unbekannt"}"
+                                _editStatusType.value = EditStatusType.ERROR
+                            }
+                        } finally {
+                            _isReadingTag.value = false
                         }
                         _pendingEditAction.value = EditAction.NONE
                     }

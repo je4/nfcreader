@@ -675,4 +675,23 @@ class NfcViewModelTest {
         assertNotNull(viewModel.lastScan.value)
         assertTrue(viewModel.lastScan.value!!.isSuccess)
     }
+
+    @Test
+    fun testIsReadingTagState() = runTest {
+        assertEquals(false, viewModel.isReadingTag.value)
+
+        // When triggerTestScan is called
+        viewModel.setUserText("Room 101")
+        viewModel.setTargetUrl(mockWebServer.url("/scan").toString())
+        viewModel.triggerTestScan()
+        advanceUntilIdle()
+
+        // After completion, isReadingTag must be false again
+        assertEquals(false, viewModel.isReadingTag.value)
+    }
+
+    @Test
+    fun testIsWritingTagState() = runTest {
+        assertEquals(false, viewModel.isWritingTag.value)
+    }
 }
